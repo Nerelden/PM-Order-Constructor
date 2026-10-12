@@ -5,6 +5,8 @@ import {defineConfig} from 'vite';
 
 export default defineConfig(() => {
   return {
+    base: '/PM-Order-Constructor/',
+    
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
