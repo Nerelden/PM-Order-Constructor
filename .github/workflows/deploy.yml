@@ -33,12 +33,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          # Указываем папку сборки. GitHub попробует найти dist, build или использует корень
-          path: |
-            ./dist
-            ./build
-            ./
-          if-no-files-found: ignore
+          path: './dist'
 
       - name: Deploy to GitHub Pages
         id: deployment
