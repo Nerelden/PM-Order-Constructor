@@ -1,23 +1,48 @@
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import {
+import { 
   getAuth, 
-  signInWithEmailAndPassword, 
+  signInWithPopup, 
+  GoogleAuthProvider, 
   signOut, 
   onAuthStateChanged,
-  User
-} from 'firebase/auth';
-import firebaseConfig from '../../firebase-applet-config.json';
+  User 
+} from "firebase/auth";
 
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-export const auth = getAuth(app);
+const auth = getAuth();
+const provider = new GoogleAuthProvider();
 
-export const loginWithEmail = async (email: string, password: string): Promise<User> => {
-  const userCredential = await signInWithEmailAndPassword(auth, email, password);
-  return userCredential.user;
+provider.addScope('https://googleapis.com');
+
+// Локальные переменные для хранения токена сессии
+let currentToken: string | null = null;
+
+export const initAuth = () => {
+  return auth;
 };
 
-export const logoutUser = async (): Promise<void> => {
+export const setAccessToken = (token: string | null) => {
+  currentToken = token;
+};
+
+export const getAccessToken = (): string | null => {
+  return currentToken;
+};
+
+export const googleSignIn = async (): Promise<{ user: User; token: string | null }> => {
+  const result = await signInWithPopup(auth, provider);
+  const credential = GoogleAuthProvider.credentialFromResult(result);
+  const token = credential?.accessToken || null;
+  
+  if (token) {
+    setAccessToken(token);
+  }
+  
+  return { user: result.user, token };
+};
+
+export const logout = async (): Promise<void> => {
   await signOut(auth);
+  setAccessToken(null);
 };
 
 export const subscribeToAuthChanges = (callback: (user: User | null) => void) => {
