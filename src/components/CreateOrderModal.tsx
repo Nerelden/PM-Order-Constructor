@@ -486,7 +486,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
                 onChange={(e) => setThreatRating(e.target.value)}
                 className="w-full px-3 py-2 bg-stone-900 border border-stone-700 rounded-lg text-xs text-stone-200 focus:outline-none focus:border-amber-500"
               >
-                <option value="Слух Города (Urban Rumor)">Слух Города (Urban Rumor)</option>
+                <option value="Слух (Canard)">Слух (Canard)</option>
                 <option value="Городской Миф (Urban Myth)">Городской Миф (Urban Myth)</option>
                 <option value="Городская Легенда (Urban Legend)">Городская Легенда (Urban Legend)</option>
                 <option value="Городская Чума (Urban Plague)">Городская Чума (Urban Plague)</option>
@@ -561,28 +561,26 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
           {/* Objective & Background */}
           <div>
             <label className="block text-xs font-semibold text-stone-300 uppercase tracking-wider mb-1 font-mono">
-              Цель операции *
+              Цель операции <span className="text-stone-500 font-normal lowercase">(необязательно)</span>
             </label>
             <textarea
               rows={2}
               value={objective}
               onChange={(e) => setObjective(e.target.value)}
-              required
-              placeholder="Опишите цель заказа"
+              placeholder="Опишите цель заказа (необязательно)"
               className="w-full px-3 py-2 bg-stone-900 border border-stone-700 rounded-lg text-xs text-stone-100 placeholder-stone-500 focus:outline-none focus:border-amber-500"
             />
           </div>
 
           <div>
             <label className="block text-xs font-semibold text-stone-300 uppercase tracking-wider mb-1 font-mono">
-              Бэкграунд и предыстория *
+              Бэкграунд и предыстория <span className="text-stone-500 font-normal lowercase">(необязательно)</span>
             </label>
             <textarea
               rows={3}
               value={background}
               onChange={(e) => setBackground(e.target.value)}
-              required
-              placeholder="Опишите предысторию и контекст"
+              placeholder="Опишите предысторию и контекст (необязательно)"
               className="w-full px-3 py-2 bg-stone-900 border border-stone-700 rounded-lg text-xs text-stone-200 placeholder-stone-500 focus:outline-none focus:border-amber-500"
             />
           </div>

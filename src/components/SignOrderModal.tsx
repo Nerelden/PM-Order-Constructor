@@ -15,6 +15,47 @@ interface SignOrderModalProps {
   ) => void;
 }
 
+const SIGNATURE_CACHE_KEY = 'pm_fixer_signature_cache';
+
+interface CachedSignature {
+  fixerName: string;
+  officeName: string;
+  stampStyle: string;
+}
+
+const getCachedSignature = (): CachedSignature => {
+  try {
+    const raw = localStorage.getItem(SIGNATURE_CACHE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') {
+        return {
+          fixerName: typeof parsed.fixerName === 'string' && parsed.fixerName ? parsed.fixerName : 'Фиксер Ранга 7',
+          officeName: typeof parsed.officeName === 'string' ? parsed.officeName : 'Независимое Бюро Города',
+          stampStyle: typeof parsed.stampStyle === 'string' && parsed.stampStyle ? parsed.stampStyle : 'ПРИНЯТО К ИСПОЛНЕНИЮ',
+        };
+      }
+    }
+  } catch (e) {
+    console.error('Failed to read signature cache', e);
+  }
+  return {
+    fixerName: 'Фиксер Ранга 7',
+    officeName: 'Независимое Бюро Города',
+    stampStyle: 'ПРИНЯТО К ИСПОЛНЕНИЮ',
+  };
+};
+
+const saveCachedSignature = (data: Partial<CachedSignature>) => {
+  try {
+    const current = getCachedSignature();
+    const updated = { ...current, ...data };
+    localStorage.setItem(SIGNATURE_CACHE_KEY, JSON.stringify(updated));
+  } catch (e) {
+    console.error('Failed to save signature cache', e);
+  }
+};
+
 export const SignOrderModal: React.FC<SignOrderModalProps> = ({
   order,
   isOpen,
@@ -26,10 +67,24 @@ export const SignOrderModal: React.FC<SignOrderModalProps> = ({
     return today.toISOString().split('T')[0];
   };
 
-  const [fixerName, setFixerName] = useState('Фиксер Ранга 7');
-  const [officeName, setOfficeName] = useState('Независимое Бюро Города');
+  const [fixerName, setFixerName] = useState(() => getCachedSignature().fixerName);
+  const [officeName, setOfficeName] = useState(() => getCachedSignature().officeName);
   const [acceptanceDate, setAcceptanceDate] = useState(getTodayISO());
-  const [stampStyle, setStampStyle] = useState('ПРИНЯТО К ИСПОЛНЕНИЮ');
+  const [stampStyle, setStampStyle] = useState(() => getCachedSignature().stampStyle);
+  const [rememberSignature, setRememberSignature] = useState(true);
+  const [hasCachedData, setHasCachedData] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const cached = getCachedSignature();
+    const rawCache = localStorage.getItem(SIGNATURE_CACHE_KEY);
+    setHasCachedData(Boolean(rawCache));
+
+    setFixerName(order?.assignedFixer || cached.fixerName);
+    setOfficeName(order?.assignedOffice || cached.officeName);
+    setStampStyle(order?.stampText || cached.stampStyle);
+    setAcceptanceDate(getTodayISO());
+  }, [isOpen, order]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -45,6 +100,14 @@ export const SignOrderModal: React.FC<SignOrderModalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!fixerName.trim()) return;
+
+    if (rememberSignature) {
+      saveCachedSignature({
+        fixerName: fixerName.trim(),
+        officeName: officeName.trim(),
+        stampStyle,
+      });
+    }
 
     // Format date nicely (e.g. DD.MM.YYYY)
     let formattedDate = acceptanceDate;
@@ -88,9 +151,16 @@ export const SignOrderModal: React.FC<SignOrderModalProps> = ({
             <Stamp className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="font-cinzel text-base font-bold text-stone-100">
-              Подписание Листа Заказа
-            </h2>
+            <div className="flex items-center gap-2">
+              <h2 className="font-cinzel text-base font-bold text-stone-100">
+                Подписание Листа Заказа
+              </h2>
+              {hasCachedData && (
+                <span className="text-[10px] text-amber-300 font-mono bg-amber-950/80 px-2 py-0.5 rounded border border-amber-500/40">
+                  Кэш активен
+                </span>
+              )}
+            </div>
             <p className="text-xs text-stone-400 font-mono-code truncate max-w-xs">
               {order.code} — {order.title}
             </p>
@@ -183,6 +253,20 @@ export const SignOrderModal: React.FC<SignOrderModalProps> = ({
             <div className="text-[10px] font-mono-code text-stone-400">
               ДАТА ПОДПИСАНИЯ: <span className="text-amber-300 font-bold">{acceptanceDate}</span>
             </div>
+          </div>
+
+          {/* Cache memory option */}
+          <div className="flex items-center gap-2 px-1 text-xs text-stone-300 font-mono">
+            <input
+              type="checkbox"
+              id="rememberSignature"
+              checked={rememberSignature}
+              onChange={(e) => setRememberSignature(e.target.checked)}
+              className="rounded border-stone-700 bg-stone-900 text-amber-500 focus:ring-0 cursor-pointer accent-amber-500"
+            />
+            <label htmlFor="rememberSignature" className="cursor-pointer select-none text-stone-300">
+              Запоминать данные подписи в кэше для следующих заказов
+            </label>
           </div>
 
           <div className="flex items-center justify-end gap-3 pt-3 border-t border-stone-800">

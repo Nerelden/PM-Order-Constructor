@@ -7,7 +7,6 @@ import React, { useState, useEffect } from 'react';
 import { User } from 'firebase/auth';
 import {
   ShieldAlert,
-  Scale,
   PlusCircle,
   Search,
   Filter,
@@ -411,16 +410,6 @@ export default function App() {
               <span>Печать / PDF</span>
             </button>
 
-            {orders.length >= 2 && (
-              <button
-                onClick={() => setIsComparisonOpen(true)}
-                className="px-3 py-2 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-300 text-xs font-mono flex items-center gap-1.5 border border-stone-700 transition-colors cursor-pointer"
-              >
-                <Scale className="w-3.5 h-3.5 text-amber-400" />
-                <span>Сравнение</span>
-              </button>
-            )}
-
             {orders.length > 0 && (
               <button
                 onClick={() => setIsResetModalOpen(true)}
@@ -570,7 +559,7 @@ export default function App() {
               )}
             </div>
           ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-7 transition-all">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-7 items-start transition-all">
               {displayedActiveOrders.map((order) => (
                 <OrderSheet
                   key={order.id}
@@ -656,7 +645,7 @@ export default function App() {
                   Нет архивных дел, соответствующих фильтру.
                 </div>
               ) : (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-7">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-7 items-start">
                   {displayedArchivedOrders.map((order) => (
                     <OrderSheet
                       key={order.id}

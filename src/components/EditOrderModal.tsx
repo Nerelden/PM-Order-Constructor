@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { X, Save, Edit3, Calendar, Link as LinkIcon, Trash2, Plus } from 'lucide-react';
-import { OrderContract, RGBColor, rgbToHex, getOrderRgb } from '../types';
+import { X, Save, Edit3, Calendar, Link as LinkIcon, Trash2, Plus, Building2, Users2, Briefcase, UserCheck } from 'lucide-react';
+import { OrderContract, RGBColor, rgbToHex, getOrderRgb, ClientCategory } from '../types';
 import { RgbColorSelector } from './RgbColorSelector';
 
 interface EditOrderModalProps {
@@ -68,8 +68,17 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
       .map((d) => d.trim())
       .filter((d) => d.length > 0);
 
+    const finalTitle = formData.title.trim() || order.title;
+    const finalCode = formData.code.trim() || order.code;
+    const finalClient = formData.client.trim() || order.client;
+
     const updated: OrderContract = {
       ...formData,
+      title: finalTitle,
+      code: finalCode,
+      client: finalClient,
+      associationName: finalClient,
+      associationRole: formData.associationRole?.trim() || '',
       colorRgb,
       colorHex: rgbToHex(colorRgb.r, colorRgb.g, colorRgb.b),
       rewardBonus: formData.rewardBonus?.trim() || '',
@@ -131,18 +140,131 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
             }}
           />
 
+          {/* Title & Code */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-semibold text-stone-300 uppercase tracking-wider mb-1 font-mono">
+                Название заказа *
+              </label>
+              <input
+                type="text"
+                value={formData.title}
+                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                required
+                placeholder="Введите название заказа"
+                className="w-full px-3 py-2 bg-stone-900 border border-stone-700 rounded-lg text-sm text-stone-100 placeholder-stone-500 focus:outline-none focus:border-amber-500 font-serif-header"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-stone-300 uppercase tracking-wider mb-1 font-mono">
+                Код дела *
+              </label>
+              <input
+                type="text"
+                value={formData.code}
+                onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+                required
+                placeholder="Код заказа"
+                className="w-full px-3 py-2 bg-stone-900 border border-stone-700 rounded-lg text-xs font-mono-code text-stone-200 placeholder-stone-500 focus:outline-none focus:border-amber-500"
+              />
+            </div>
+          </div>
+
+          {/* Client Category Selection */}
           <div>
-            <label className="block text-xs font-semibold text-stone-300 uppercase tracking-wider mb-1 font-mono">
-              Название заказа
+            <label className="block text-xs font-semibold text-stone-300 uppercase tracking-wider mb-2 font-mono">
+              Тип Заказчика
             </label>
-            <input
-              type="text"
-              value={formData.title}
-              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-              required
-              placeholder="Введите название заказа"
-              className="w-full px-3 py-2 bg-stone-900 border border-stone-700 rounded-lg text-sm text-stone-100 placeholder-stone-500 focus:outline-none focus:border-amber-500 font-serif-header"
-            />
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <button
+                type="button"
+                onClick={() => setFormData({ ...formData, clientCategory: 'association' })}
+                className={`p-2 rounded-xl border text-xs font-medium flex items-center gap-1.5 transition-all cursor-pointer ${
+                  formData.clientCategory === 'association'
+                    ? 'bg-cyan-950/60 border-cyan-500 text-cyan-200 shadow-md'
+                    : 'bg-stone-900 border-stone-800 text-stone-400 hover:text-stone-300'
+                }`}
+              >
+                <Building2 className="w-3.5 h-3.5 text-cyan-400" />
+                <span>Ассоциация</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setFormData({ ...formData, clientCategory: 'syndicate' })}
+                className={`p-2 rounded-xl border text-xs font-medium flex items-center gap-1.5 transition-all cursor-pointer ${
+                  formData.clientCategory === 'syndicate'
+                    ? 'bg-red-950/60 border-red-500 text-red-200 shadow-md'
+                    : 'bg-stone-900 border-stone-800 text-stone-400 hover:text-stone-300'
+                }`}
+              >
+                <Users2 className="w-3.5 h-3.5 text-red-400" />
+                <span>Синдикат</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setFormData({ ...formData, clientCategory: 'office' })}
+                className={`p-2 rounded-xl border text-xs font-medium flex items-center gap-1.5 transition-all cursor-pointer ${
+                  formData.clientCategory === 'office'
+                    ? 'bg-emerald-950/60 border-emerald-500 text-emerald-200 shadow-md'
+                    : 'bg-stone-900 border-stone-800 text-stone-400 hover:text-stone-300'
+                }`}
+              >
+                <Briefcase className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Офис</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setFormData({ ...formData, clientCategory: 'individual' })}
+                className={`p-2 rounded-xl border text-xs font-medium flex items-center gap-1.5 transition-all cursor-pointer ${
+                  formData.clientCategory === 'individual'
+                    ? 'bg-purple-950/60 border-purple-500 text-purple-200 shadow-md'
+                    : 'bg-stone-900 border-stone-800 text-stone-400 hover:text-stone-300'
+                }`}
+              >
+                <UserCheck className="w-3.5 h-3.5 text-purple-400" />
+                <span>Индивидуальный</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Client Name & Profile */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-stone-300 uppercase tracking-wider mb-1 font-mono">
+                Заказчик (Наименование) *
+              </label>
+              <input
+                type="text"
+                value={formData.client}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    client: e.target.value,
+                    associationName: e.target.value,
+                  })
+                }
+                required
+                placeholder="Введите наименование заказчика"
+                className="w-full px-3 py-2 bg-stone-900 border border-stone-700 rounded-lg text-xs text-stone-100 placeholder-stone-500 focus:outline-none focus:border-amber-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-stone-300 uppercase tracking-wider mb-1 font-mono">
+                Профиль деятельности заказчика
+              </label>
+              <input
+                type="text"
+                value={formData.associationRole || ''}
+                onChange={(e) => setFormData({ ...formData, associationRole: e.target.value })}
+                placeholder="Например: Патрулирование Района"
+                className="w-full px-3 py-2 bg-stone-900 border border-stone-700 rounded-lg text-xs text-stone-300 placeholder-stone-500 focus:outline-none focus:border-amber-500"
+              />
+            </div>
           </div>
 
           {/* Watermark URL & Text */}
@@ -274,7 +396,7 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
                 onChange={(e) => setFormData({ ...formData, threatRating: e.target.value })}
                 className="w-full px-3 py-2 bg-stone-900 border border-stone-700 rounded-lg text-xs text-stone-200 focus:outline-none focus:border-amber-500"
               >
-                <option value="Слух Города (Urban Rumor)">Слух Города (Urban Rumor)</option>
+                <option value="Слух (Canard)">Слух (Canard)</option>
                 <option value="Городской Миф (Urban Myth)">Городской Миф (Urban Myth)</option>
                 <option value="Городская Легенда (Urban Legend)">Городская Легенда (Urban Legend)</option>
                 <option value="Городская Чума (Urban Plague)">Городская Чума (Urban Plague)</option>
@@ -302,26 +424,26 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
 
           <div>
             <label className="block text-xs font-semibold text-stone-300 uppercase tracking-wider mb-1 font-mono">
-              Цель операции
+              Цель операции <span className="text-stone-500 font-normal lowercase">(необязательно)</span>
             </label>
             <textarea
               rows={2}
               value={formData.objective}
               onChange={(e) => setFormData({ ...formData, objective: e.target.value })}
-              placeholder="Опишите цель заказа"
+              placeholder="Опишите цель заказа (необязательно)"
               className="w-full px-3 py-2 bg-stone-900 border border-stone-700 rounded-lg text-xs text-stone-200 placeholder-stone-500 focus:outline-none focus:border-amber-500"
             />
           </div>
 
           <div>
             <label className="block text-xs font-semibold text-stone-300 uppercase tracking-wider mb-1 font-mono">
-              Бэкграунд и предыстория
+              Бэкграунд и предыстория <span className="text-stone-500 font-normal lowercase">(необязательно)</span>
             </label>
             <textarea
               rows={3}
               value={formData.background}
               onChange={(e) => setFormData({ ...formData, background: e.target.value })}
-              placeholder="Опишите предысторию и контекст"
+              placeholder="Опишите предысторию и контекст (необязательно)"
               className="w-full px-3 py-2 bg-stone-900 border border-stone-700 rounded-lg text-xs text-stone-200 placeholder-stone-500 focus:outline-none focus:border-amber-500"
             />
           </div>

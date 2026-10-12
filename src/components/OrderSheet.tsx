@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   ShieldAlert,
   Compass,
@@ -55,9 +55,11 @@ export const OrderSheet: React.FC<OrderSheetProps> = ({
   onClearStamp,
 }) => {
   const [copied, setCopied] = useState(false);
-  const [isExpandedLocal, setIsExpandedLocal] = useState<boolean | null>(null);
+  const [isExpanded, setIsExpanded] = useState<boolean>(forceExpanded ?? false);
 
-  const isExpanded = isExpandedLocal !== null ? isExpandedLocal : (forceExpanded ?? false);
+  useEffect(() => {
+    setIsExpanded(forceExpanded ?? false);
+  }, [forceExpanded]);
 
   // Compute dynamic RGB color
   const rgb = getOrderRgb(order);
@@ -170,7 +172,7 @@ ${order.signedDate ? `Дата принятия заказа: ${order.signedDate
   return (
     <article
       style={{ borderColor: isFailed ? '#dc2626' : rgbBorderCard }}
-      className={`order-sheet-card relative rounded-2xl transition-all duration-300 overflow-hidden flex flex-col justify-between ${
+      className={`order-sheet-card relative rounded-2xl transition-all duration-300 overflow-hidden flex flex-col justify-between self-start w-full ${
         theme === 'parchment'
           ? 'parchment-bg text-stone-200 shadow-2xl border-2'
           : 'terminal-bg text-stone-100 shadow-xl border-2'
@@ -251,7 +253,7 @@ ${order.signedDate ? `Дата принятия заказа: ${order.signedDate
           </select>
 
           <button
-            onClick={() => setIsExpandedLocal(!isExpanded)}
+            onClick={() => setIsExpanded(!isExpanded)}
             className="p-1.5 rounded-md hover:bg-stone-800 text-stone-400 hover:text-stone-200 transition-colors flex items-center gap-1 text-xs font-mono cursor-pointer"
             title={isExpanded ? 'Свернуть подробности' : 'Развернуть подробности'}
           >
@@ -344,12 +346,18 @@ ${order.signedDate ? `Дата принятия заказа: ${order.signedDate
         {!isExpanded && (
           <div className="flex items-center justify-between text-xs text-stone-400 font-mono-code pt-1">
             <div className="truncate max-w-[70%] text-stone-300">
-              <span className="text-stone-500 font-bold">Цель: </span>
-              {order.objective}
+              {order.objective ? (
+                <>
+                  <span className="text-stone-500 font-bold">Цель: </span>
+                  {order.objective}
+                </>
+              ) : (
+                <span className="text-stone-500 italic">Цель операции не указана</span>
+              )}
             </div>
             <button
               type="button"
-              onClick={() => setIsExpandedLocal(true)}
+              onClick={() => setIsExpanded(true)}
               className="text-amber-400 hover:text-amber-300 flex items-center gap-1 font-semibold text-[11px] hover:underline cursor-pointer"
             >
               <span>Развернуть</span>
@@ -378,29 +386,33 @@ ${order.signedDate ? `Дата принятия заказа: ${order.signedDate
             </div>
 
             {/* SECTION 2: ЦЕЛЬ */}
-            <div className="rounded-xl bg-gradient-to-r from-stone-950 via-stone-900/60 to-stone-950 border border-stone-700/80 p-4 space-y-1.5 shadow-inner">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-mono-code uppercase tracking-wider font-bold text-amber-400 flex items-center gap-1.5">
-                  <Target className="w-3.5 h-3.5 text-amber-400" />
-                  Цель операции:
-                </span>
-                <span className="text-[10px] font-mono text-stone-400">ОБЯЗАТЕЛЬНО К ИСПОЛНЕНИЮ</span>
+            {order.objective && (
+              <div className="rounded-xl bg-gradient-to-r from-stone-950 via-stone-900/60 to-stone-950 border border-stone-700/80 p-4 space-y-1.5 shadow-inner">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-mono-code uppercase tracking-wider font-bold text-amber-400 flex items-center gap-1.5">
+                    <Target className="w-3.5 h-3.5 text-amber-400" />
+                    Цель операции:
+                  </span>
+                  <span className="text-[10px] font-mono text-stone-400">ОБЯЗАТЕЛЬНО К ИСПОЛНЕНИЮ</span>
+                </div>
+                <p className="text-sm sm:text-base font-semibold text-stone-100 leading-relaxed pl-1 border-l-2 border-amber-500/80">
+                  {order.objective}
+                </p>
               </div>
-              <p className="text-sm sm:text-base font-semibold text-stone-100 leading-relaxed pl-1 border-l-2 border-amber-500/80">
-                {order.objective}
-              </p>
-            </div>
+            )}
 
             {/* SECTION 3: БЭКГРАУНД */}
-            <div className="space-y-1.5">
-              <div className="text-[11px] font-mono-code uppercase font-semibold text-stone-400 flex items-center gap-1.5">
-                <FileText className="w-3.5 h-3.5 text-stone-400" />
-                <span>Бэкграунд и разведывательные данные:</span>
+            {order.background && (
+              <div className="space-y-1.5">
+                <div className="text-[11px] font-mono-code uppercase font-semibold text-stone-400 flex items-center gap-1.5">
+                  <FileText className="w-3.5 h-3.5 text-stone-400" />
+                  <span>Бэкграунд и разведывательные данные:</span>
+                </div>
+                <div className="p-3.5 rounded-xl bg-stone-950/40 border border-stone-800/80 text-xs sm:text-sm text-stone-300 leading-relaxed font-sans">
+                  {order.background}
+                </div>
               </div>
-              <div className="p-3.5 rounded-xl bg-stone-950/40 border border-stone-800/80 text-xs sm:text-sm text-stone-300 leading-relaxed font-sans">
-                {order.background}
-              </div>
-            </div>
+            )}
 
             {/* SECTION 4: УСЛОВИЯ И УГРОЗЫ */}
             <div className="space-y-2">
@@ -591,7 +603,7 @@ ${order.signedDate ? `Дата принятия заказа: ${order.signedDate
         <div className="flex items-center gap-2">
           {/* Quick toggle details */}
           <button
-            onClick={() => setIsExpandedLocal(!isExpanded)}
+            onClick={() => setIsExpanded(!isExpanded)}
             className="px-2 py-1.5 rounded-lg hover:bg-stone-800 text-stone-400 hover:text-stone-200 border border-stone-800 text-xs flex items-center gap-1 font-mono transition-colors cursor-pointer"
           >
             {isExpanded ? (

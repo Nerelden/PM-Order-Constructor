@@ -7,7 +7,6 @@ import {
   Clock,
   LogOut,
   User as UserIcon,
-  Scale,
   Building2,
   Users2,
   Briefcase,
@@ -21,7 +20,7 @@ interface HeaderProps {
   onLogout: () => void;
   theme: VisualTheme;
   setTheme: (theme: VisualTheme) => void;
-  onOpenComparison: () => void;
+  onOpenComparison?: () => void;
   onOpenPdfModal: () => void;
   onOpenCreateModal?: () => void;
   ordersCount: number;
@@ -112,18 +111,6 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Action Controls */}
         <div className="flex flex-wrap items-center gap-2">
-          {/* Compare Button */}
-          {ordersCount >= 2 && (
-            <button
-              onClick={onOpenComparison}
-              className="px-2.5 py-1.5 rounded-lg bg-stone-900 hover:bg-stone-800 text-stone-300 hover:text-white border border-stone-700 text-xs flex items-center gap-1.5 transition-colors font-mono"
-              title="Сравнить риски и параметры заказов"
-            >
-              <Scale className="w-3.5 h-3.5 text-amber-400" />
-              <span className="hidden lg:inline">Сравнение</span>
-            </button>
-          )}
-
           {/* Theme Switcher */}
           <button
             onClick={() => setTheme(theme === 'parchment' ? 'terminal' : 'parchment')}

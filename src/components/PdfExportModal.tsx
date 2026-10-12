@@ -178,8 +178,8 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
         <div><span class="label">Локация:</span> ${o.location}</div>
         <div><span class="label">Угроза:</span> ${o.threatRating}</div>
       </div>
-      <div class="box"><span class="label">Цель операции:</span><br>${o.objective}</div>
-      <div class="box"><span class="label">Бэкграунд разведки:</span><br>${o.background}</div>
+      ${o.objective ? `<div class="box"><span class="label">Цель операции:</span><br>${o.objective}</div>` : ''}
+      ${o.background ? `<div class="box"><span class="label">Бэкграунд разведки:</span><br>${o.background}</div>` : ''}
       <div class="box threats"><span class="label" style="color:#991b1b;">Условия и угрозы:</span><br>${o.threats.map((t) => '• ' + t).join('<br>')}</div>
       ${o.details ? `<div class="box"><span class="label">Подробности:</span><br>${o.details}</div>` : ''}
       ${o.tacticalNotes && o.tacticalNotes.length > 0 ? `<div class="box"><span class="label">Особые предписания и директивы:</span><br>${o.tacticalNotes.map((n) => '• ' + n).join('<br>')}</div>` : ''}
@@ -436,21 +436,25 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
                           </div>
                         </div>
 
-                        <div className="text-xs space-y-1 relative z-10">
-                          <span className="font-mono text-stone-400 text-[10px] block font-bold uppercase">
-                            ЦЕЛЬ:
-                          </span>
-                          <p className="text-stone-200">{order.objective}</p>
-                        </div>
+                        {order.objective && (
+                          <div className="text-xs space-y-1 relative z-10">
+                            <span className="font-mono text-stone-400 text-[10px] block font-bold uppercase">
+                              ЦЕЛЬ:
+                            </span>
+                            <p className="text-stone-200">{order.objective}</p>
+                          </div>
+                        )}
 
-                        <div className="text-xs space-y-1 relative z-10">
-                          <span className="font-mono text-stone-400 text-[10px] block font-bold uppercase">
-                            БЭКГРАУНД:
-                          </span>
-                          <p className="text-stone-300 text-[11px] leading-relaxed">
-                            {order.background}
-                          </p>
-                        </div>
+                        {order.background && (
+                          <div className="text-xs space-y-1 relative z-10">
+                            <span className="font-mono text-stone-400 text-[10px] block font-bold uppercase">
+                              БЭКГРАУНД:
+                            </span>
+                            <p className="text-stone-300 text-[11px] leading-relaxed">
+                              {order.background}
+                            </p>
+                          </div>
+                        )}
 
                         <div className="text-xs space-y-1 relative z-10">
                           <span className="font-mono text-red-400 text-[10px] block font-bold uppercase">
