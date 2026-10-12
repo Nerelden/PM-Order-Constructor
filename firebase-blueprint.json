@@ -1,0 +1,118 @@
+{
+  "entities": {
+    "OrderContract": {
+      "title": "OrderContract",
+      "description": "Официальный лист заказа или контракт Города",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Уникальный идентификатор заказа"
+        },
+        "code": {
+          "type": "string",
+          "description": "Официальный регистрационный код дела"
+        },
+        "title": {
+          "type": "string",
+          "description": "Название заказа"
+        },
+        "client": {
+          "type": "string",
+          "description": "Полное наименование заказчика"
+        },
+        "clientCategory": {
+          "type": "string",
+          "enum": ["association", "syndicate", "office", "individual"]
+        },
+        "associationName": {
+          "type": "string"
+        },
+        "associationRole": {
+          "type": "string"
+        },
+        "associationCode": {
+          "type": "string"
+        },
+        "romanNumeral": {
+          "type": "string"
+        },
+        "accentColor": {
+          "type": "string"
+        },
+        "colorHex": {
+          "type": "string"
+        },
+        "colorRgb": {
+          "type": "object",
+          "properties": {
+            "r": { "type": "number" },
+            "g": { "type": "number" },
+            "b": { "type": "number" }
+          }
+        },
+        "watermarkUrl": {
+          "type": "string"
+        },
+        "gradeRequirement": {
+          "type": "string"
+        },
+        "location": {
+          "type": "string"
+        },
+        "threatRating": {
+          "type": "string"
+        },
+        "rewardAhn": {
+          "type": "number"
+        },
+        "rewardBonus": {
+          "type": "string"
+        },
+        "objective": {
+          "type": "string"
+        },
+        "background": {
+          "type": "string"
+        },
+        "threats": {
+          "type": "array"
+        },
+        "details": {
+          "type": "string"
+        },
+        "tacticalNotes": {
+          "type": "array"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["available", "in_progress", "completed"]
+        },
+        "assignedFixer": {
+          "type": "string"
+        },
+        "assignedOffice": {
+          "type": "string"
+        },
+        "signedDate": {
+          "type": "string"
+        },
+        "stampText": {
+          "type": "string"
+        },
+        "updatedAt": {
+          "type": "number"
+        }
+      },
+      "required": ["id", "code", "title", "client", "clientCategory", "objective", "rewardAhn", "status"]
+    }
+  },
+  "firestore": {
+    "/orders/{orderId}": {
+      "schema": {
+        "$ref": "#/entities/OrderContract"
+      },
+      "description": "Коллекция активных официальных контрактов и листов заказов Города (до 10 документов)"
+    }
+  }
+}

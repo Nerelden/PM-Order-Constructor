@@ -1,0 +1,557 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import React, { useState, useEffect } from 'react';
+import { User } from 'firebase/auth';
+import {
+  ShieldAlert,
+  Scale,
+  PlusCircle,
+  Search,
+  Filter,
+  FileDown,
+  Trash2
+} from 'lucide-react';
+import { OrderContract, VisualTheme, ClientCategory, MAX_ORDERS_COUNT } from './types';
+import { Header } from './components/Header';
+import { OrderSheet } from './components/OrderSheet';
+import { ExportSheetsDialog } from './components/ExportSheetsDialog';
+import { SignOrderModal } from './components/SignOrderModal';
+import { EditOrderModal } from './components/EditOrderModal';
+import { CreateOrderModal } from './components/CreateOrderModal';
+import { ComparisonModal } from './components/ComparisonModal';
+import { ConfirmDeleteModal } from './components/ConfirmDeleteModal';
+import { ConfirmResetModal } from './components/ConfirmResetModal';
+import { PdfExportModal } from './components/PdfExportModal';
+import { initAuth, googleSignIn, logout, setAccessToken } from './services/firebaseAuth';
+import {
+  subscribeToRealtimeOrders,
+  syncOrderToFirestore,
+  deleteOrderFromFirestore,
+  clearAllOrdersFromFirestore
+} from './services/firestoreOrders';
+
+const LOCAL_STORAGE_KEY = 'city_order_sheets_data_v5';
+
+export default function App() {
+  const [orders, setOrders] = useState<OrderContract[]>(() => {
+    try {
+      const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to parse saved orders from localStorage', e);
+    }
+    return [];
+  });
+
+  const [, setIsLoading] = useState(true);
+  const [theme, setTheme] = useState<VisualTheme>('parchment');
+  const [categoryFilter, setCategoryFilter] = useState<'all' | ClientCategory>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'available' | 'in_progress' | 'completed'>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Auth State
+  const [user, setUser] = useState<User | null>(null);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+
+  // Modals
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [isComparisonOpen, setIsComparisonOpen] = useState(false);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
+  const [signingOrder, setSigningOrder] = useState<OrderContract | null>(null);
+  const [editingOrder, setEditingOrder] = useState<OrderContract | null>(null);
+  const [deletingOrder, setDeletingOrder] = useState<OrderContract | null>(null);
+  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+
+  // 1. Subscribe to Real-Time Multi-User Firestore Updates
+  useEffect(() => {
+    const unsubscribe = subscribeToRealtimeOrders(
+      (remoteOrders) => {
+        setOrders(remoteOrders);
+        setIsLoading(false);
+        try {
+          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(remoteOrders));
+        } catch (e) {
+          console.warn('Failed to cache orders to localStorage', e);
+        }
+      },
+      (err) => {
+        console.error('Realtime sync fallback:', err);
+        setIsLoading(false);
+      }
+    );
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, []);
+
+  // 2. Firebase Auth listener
+  useEffect(() => {
+    const unsubscribe = initAuth(
+      (authedUser, token) => {
+        setUser(authedUser);
+        setAccessToken(token);
+      },
+      () => {
+        setUser(null);
+        setAccessToken(null);
+      }
+    );
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, []);
+
+  const handleLogin = async () => {
+    setIsLoggingIn(true);
+    try {
+      const res = await googleSignIn();
+      if (res) {
+        setUser(res.user);
+        setAccessToken(res.accessToken);
+      }
+    } catch (err) {
+      console.error('Login error:', err);
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      setUser(null);
+    } catch (err) {
+      console.error('Logout error:', err);
+    }
+  };
+
+  // Change Status in real-time
+  const handleStatusChange = async (
+    orderId: string,
+    newStatus: 'available' | 'in_progress' | 'completed'
+  ) => {
+    const target = orders.find((o) => o.id === orderId);
+    if (!target) return;
+    const updated = { ...target, status: newStatus, updatedAt: Date.now() };
+
+    setOrders((prev) => prev.map((o) => (o.id === orderId ? updated : o)));
+
+    try {
+      await syncOrderToFirestore(updated);
+    } catch (err) {
+      console.error('Failed to sync status change:', err);
+    }
+  };
+
+  // Sign Order with fixer, office and custom Acceptance Date in real-time
+  const handleSignOrder = async (
+    orderId: string,
+    fixerName: string,
+    officeName: string,
+    stampText: string,
+    signedDate: string
+  ) => {
+    const target = orders.find((o) => o.id === orderId);
+    if (!target) return;
+
+    const updated: OrderContract = {
+      ...target,
+      status: 'in_progress',
+      assignedFixer: fixerName,
+      assignedOffice: officeName,
+      stampText,
+      signedDate,
+      updatedAt: Date.now(),
+    };
+
+    setOrders((prev) => prev.map((o) => (o.id === orderId ? updated : o)));
+
+    try {
+      await syncOrderToFirestore(updated);
+    } catch (err) {
+      console.error('Failed to sync signed order:', err);
+    }
+  };
+
+  // Save edited order in real-time
+  const handleSaveEditedOrder = async (updated: OrderContract) => {
+    const withTimestamp = { ...updated, updatedAt: Date.now() };
+    setOrders((prev) => prev.map((o) => (o.id === updated.id ? withTimestamp : o)));
+
+    try {
+      await syncOrderToFirestore(withTimestamp);
+    } catch (err) {
+      console.error('Failed to sync edited order:', err);
+    }
+  };
+
+  // Add new order via constructor in real-time
+  const handleAddOrder = async (newOrder: OrderContract) => {
+    if (orders.length >= MAX_ORDERS_COUNT) {
+      alert(`Достигнут максимальный лимит: ${MAX_ORDERS_COUNT} заказов в реестре.`);
+      return;
+    }
+
+    const orderWithTime = { ...newOrder, updatedAt: Date.now() };
+    setOrders((prev) => [orderWithTime, ...prev]);
+
+    try {
+      await syncOrderToFirestore(orderWithTime);
+    } catch (err) {
+      console.error('Failed to add order to Firestore:', err);
+    }
+  };
+
+  // Delete order in real-time
+  const handleConfirmDelete = async (orderId: string) => {
+    setOrders((prev) => prev.filter((o) => o.id !== orderId));
+    try {
+      await deleteOrderFromFirestore(orderId);
+    } catch (err) {
+      console.error('Failed to delete order from Firestore:', err);
+    }
+  };
+
+  // Complete wipe of all contracts (resets to 0 contracts, no default ones restored)
+  const handleConfirmReset = async () => {
+    setOrders([]);
+    localStorage.removeItem(LOCAL_STORAGE_KEY);
+    try {
+      await clearAllOrdersFromFirestore();
+    } catch (err) {
+      console.error('Failed to clear all orders from Firestore:', err);
+    }
+  };
+
+  // Filter orders
+  const displayedOrders = orders.filter((order) => {
+    if (categoryFilter !== 'all' && order.clientCategory !== categoryFilter) {
+      return false;
+    }
+    if (statusFilter !== 'all' && order.status !== statusFilter) {
+      return false;
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      const matchTitle = order.title.toLowerCase().includes(q);
+      const matchCode = order.code.toLowerCase().includes(q);
+      const matchClient = order.client.toLowerCase().includes(q);
+      const matchObj = order.objective.toLowerCase().includes(q);
+      if (!matchTitle && !matchCode && !matchClient && !matchObj) {
+        return false;
+      }
+    }
+    return true;
+  });
+
+  return (
+    <div className="min-h-screen flex flex-col bg-[#0b0d11] text-stone-100 selection:bg-amber-500/30 selection:text-amber-200">
+      {/* Top Header */}
+      <Header
+        user={user}
+        onLogin={handleLogin}
+        onLogout={handleLogout}
+        isLoggingIn={isLoggingIn}
+        onOpenExportDialog={() => setIsExportModalOpen(true)}
+        theme={theme}
+        setTheme={setTheme}
+        onOpenComparison={() => setIsComparisonOpen(true)}
+        onOpenPdfModal={() => setIsPdfModalOpen(true)}
+        onOpenCreateModal={() => setIsCreateModalOpen(true)}
+        ordersCount={orders.length}
+        categoryFilter={categoryFilter}
+        setCategoryFilter={setCategoryFilter}
+      />
+
+      {/* Main Content Area */}
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
+        {/* Real-time Status & Control Bar */}
+        <section className="no-print rounded-2xl bg-gradient-to-r from-stone-900 via-stone-900/90 to-amber-950/40 border border-stone-800 p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 shadow-lg">
+          <div className="space-y-1">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <h2 className="font-cinzel text-base sm:text-lg font-bold text-stone-100 flex items-center gap-2">
+                АРХИВ ЗАКАЗОВ ГОРОДА
+              </h2>
+              <span className="font-mono text-xs px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                {orders.length} / {MAX_ORDERS_COUNT} СЛОТОВ
+              </span>
+              <span className="flex items-center gap-1.5 text-[11px] font-mono px-2 py-0.5 rounded bg-emerald-950/80 text-emerald-300 border border-emerald-500/30">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span>СИНХРОНИЗАЦИЯ: В РЕАЛЬНОМ ВРЕМЕНИ ДЛЯ ВСЕХ</span>
+              </span>
+            </div>
+            <p className="text-xs text-stone-400 font-sans max-w-2xl">
+              Единый реестр контрактов. Любое создание, удаление или изменение заказа мгновенно синхронизируется у всех пользователей. Доступно до 10 заказов с печатью и экспортом в PDF.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2.5">
+            <button
+              onClick={() => setIsCreateModalOpen(true)}
+              disabled={orders.length >= MAX_ORDERS_COUNT}
+              className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 disabled:cursor-not-allowed text-stone-950 font-bold text-xs flex items-center gap-2 shadow-lg shadow-amber-950/40 transition-all"
+            >
+              <PlusCircle className="w-4 h-4 text-stone-950" />
+              <span>Создать заказ ({orders.length}/10)</span>
+            </button>
+
+            <button
+              onClick={() => setIsPdfModalOpen(true)}
+              className="px-3.5 py-2 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-200 text-xs font-mono flex items-center gap-1.5 border border-stone-700 transition-colors"
+              title="Экспорт в PDF (A4) или печать бланков"
+            >
+              <FileDown className="w-3.5 h-3.5 text-amber-400" />
+              <span>Печать / PDF</span>
+            </button>
+
+            {orders.length >= 2 && (
+              <button
+                onClick={() => setIsComparisonOpen(true)}
+                className="px-3 py-2 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-300 text-xs font-mono flex items-center gap-1.5 border border-stone-700 transition-colors"
+              >
+                <Scale className="w-3.5 h-3.5 text-amber-400" />
+                <span>Сравнение</span>
+              </button>
+            )}
+
+            {orders.length > 0 && (
+              <button
+                onClick={() => setIsResetModalOpen(true)}
+                className="px-3 py-2 rounded-xl bg-stone-900 hover:bg-red-950/60 text-stone-400 hover:text-red-300 text-xs font-mono flex items-center gap-1.5 border border-stone-800 hover:border-red-800/60 transition-colors"
+                title="Очистить реестр и удалить все контракты"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Очистить все</span>
+              </button>
+            )}
+          </div>
+        </section>
+
+        {/* Filter & Search Bar */}
+        {orders.length > 0 && (
+          <section className="no-print flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-stone-950/70 p-3 rounded-xl border border-stone-800/80 text-xs">
+            {/* Search */}
+            <div className="relative flex-1 max-w-md">
+              <Search className="w-4 h-4 text-stone-500 absolute left-3 top-2.5" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Поиск по названию, коду, заказчику или цели..."
+                className="w-full pl-9 pr-3 py-1.5 bg-stone-900/90 border border-stone-800 rounded-lg text-xs text-stone-200 placeholder-stone-500 focus:outline-none focus:border-amber-500 font-mono"
+              />
+            </div>
+
+            {/* Status filter */}
+            <div className="flex items-center gap-2">
+              <span className="text-stone-500 font-mono text-[11px] flex items-center gap-1">
+                <Filter className="w-3 h-3" />
+                Статус:
+              </span>
+              <div className="flex items-center bg-stone-900 rounded-lg p-0.5 border border-stone-800 text-xs font-mono">
+                <button
+                  onClick={() => setStatusFilter('all')}
+                  className={`px-2 py-1 rounded transition-colors ${
+                    statusFilter === 'all'
+                      ? 'bg-stone-800 text-amber-300 font-bold'
+                      : 'text-stone-400 hover:text-stone-200'
+                  }`}
+                >
+                  Все
+                </button>
+                <button
+                  onClick={() => setStatusFilter('available')}
+                  className={`px-2 py-1 rounded transition-colors ${
+                    statusFilter === 'available'
+                      ? 'bg-emerald-950 text-emerald-300 font-bold border border-emerald-500/30'
+                      : 'text-stone-400 hover:text-stone-200'
+                  }`}
+                >
+                  Доступные
+                </button>
+                <button
+                  onClick={() => setStatusFilter('in_progress')}
+                  className={`px-2 py-1 rounded transition-colors ${
+                    statusFilter === 'in_progress'
+                      ? 'bg-amber-950 text-amber-300 font-bold border border-amber-500/30'
+                      : 'text-stone-400 hover:text-stone-200'
+                  }`}
+                >
+                  В работе
+                </button>
+                <button
+                  onClick={() => setStatusFilter('completed')}
+                  className={`px-2 py-1 rounded transition-colors ${
+                    statusFilter === 'completed'
+                      ? 'bg-blue-950 text-blue-300 font-bold border border-blue-500/30'
+                      : 'text-stone-400 hover:text-stone-200'
+                  }`}
+                >
+                  Завершенные
+                </button>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* The Grid of Order Sheets or Clean Empty State */}
+        {orders.length === 0 ? (
+          <div className="p-12 text-center rounded-2xl bg-stone-950/60 border border-stone-800 space-y-4">
+            <div className="w-12 h-12 mx-auto rounded-2xl bg-stone-900 border border-amber-500/30 flex items-center justify-center text-amber-400">
+              <ShieldAlert className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="font-cinzel text-base sm:text-lg font-bold text-stone-200">
+                В реестре нет активных заказов
+              </h3>
+              <p className="text-xs text-stone-400 font-mono-code mt-1 max-w-md mx-auto">
+                Реестр полностью чист. Вы можете создать новый заказ в конструкторе.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+              <button
+                onClick={() => setIsCreateModalOpen(true)}
+                className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold text-xs flex items-center gap-2 shadow-lg shadow-amber-950/40 transition-colors"
+              >
+                <PlusCircle className="w-4 h-4 text-stone-950" />
+                <span>+ Создать заказ в конструкторе</span>
+              </button>
+            </div>
+          </div>
+        ) : displayedOrders.length === 0 ? (
+          <div className="p-12 text-center rounded-2xl bg-stone-950/60 border border-stone-800 space-y-4">
+            <div className="w-12 h-12 mx-auto rounded-2xl bg-stone-900 flex items-center justify-center text-stone-500">
+              <Search className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="font-cinzel text-base font-bold text-stone-300">
+                По фильтру ничего не найдено
+              </h3>
+              <p className="text-xs text-stone-500 font-mono-code mt-1">
+                Попробуйте изменить категорию или поисковый запрос.
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                setCategoryFilter('all');
+                setStatusFilter('all');
+                setSearchQuery('');
+              }}
+              className="px-4 py-2 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-300 text-xs font-mono"
+            >
+              Сбросить фильтры
+            </button>
+          </div>
+        ) : (
+          <section className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 transition-all">
+            {displayedOrders.map((order) => (
+              <OrderSheet
+                key={order.id}
+                order={order}
+                theme={theme}
+                onSignClick={(o) => setSigningOrder(o)}
+                onEditClick={(o) => setEditingOrder(o)}
+                onDeleteClick={(id) => {
+                  const target = orders.find((o) => o.id === id);
+                  if (target) setDeletingOrder(target);
+                }}
+                onPrintClick={() => {
+                  setEditingOrder(null);
+                  setIsPdfModalOpen(true);
+                }}
+                onStatusChange={handleStatusChange}
+              />
+            ))}
+          </section>
+        )}
+      </main>
+
+      {/* Footer */}
+      <footer className="no-print border-t border-stone-800/80 bg-[#090b0e] py-6 text-center text-xs text-stone-500 font-mono-code">
+        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div>
+            <span>БЮРО КОНТРАКТОВ ГОРОДА • РЕЕСТР НАДЗОРА</span>
+          </div>
+          <div className="flex items-center gap-4 text-stone-400 text-[11px]">
+            <span>Слоты: {orders.length}/{MAX_ORDERS_COUNT}</span>
+            <span>•</span>
+            <span>Синхронизация Firestore</span>
+            <span>•</span>
+            <span>Google Sheets Sync</span>
+          </div>
+        </div>
+      </footer>
+
+      {/* Modals */}
+      <CreateOrderModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        currentCount={orders.length}
+        onAddOrder={handleAddOrder}
+      />
+
+      <ExportSheetsDialog
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        orders={orders}
+        user={user}
+        onAuthSuccess={(authedUser, token) => {
+          setUser(authedUser);
+          setAccessToken(token);
+        }}
+      />
+
+      <PdfExportModal
+        isOpen={isPdfModalOpen}
+        onClose={() => setIsPdfModalOpen(false)}
+        orders={orders}
+        theme={theme}
+      />
+
+      <SignOrderModal
+        order={signingOrder}
+        isOpen={!!signingOrder}
+        onClose={() => setSigningOrder(null)}
+        onSign={handleSignOrder}
+      />
+
+      <EditOrderModal
+        order={editingOrder}
+        isOpen={!!editingOrder}
+        onClose={() => setEditingOrder(null)}
+        onSave={handleSaveEditedOrder}
+      />
+
+      <ConfirmDeleteModal
+        order={deletingOrder}
+        isOpen={!!deletingOrder}
+        onClose={() => setDeletingOrder(null)}
+        onConfirm={handleConfirmDelete}
+      />
+
+      <ConfirmResetModal
+        isOpen={isResetModalOpen}
+        onClose={() => setIsResetModalOpen(false)}
+        onConfirm={handleConfirmReset}
+      />
+
+      <ComparisonModal
+        orders={orders}
+        isOpen={isComparisonOpen}
+        onClose={() => setIsComparisonOpen(false)}
+        onSelectOrder={() => {}}
+      />
+    </div>
+  );
+}

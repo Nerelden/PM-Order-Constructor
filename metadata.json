@@ -1,0 +1,6 @@
+{
+  "name": "Листы Заказа Города — Контракты Ассоциаций",
+  "description": "Официальные листы контрактов Ассоциаций Дзеветь и Цвай с расчётом условий, печатью документов и синхронизацией в Google Таблицы.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
