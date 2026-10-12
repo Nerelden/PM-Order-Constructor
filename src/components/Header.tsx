@@ -87,11 +87,11 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Brand & Emblem */}
         <div className="flex items-center gap-3">
           <img
-            src="./logo_han.png"
+            src="logo_han.png"
             alt="Герб Ассоциации Хана"
             className="w-11 h-11 sm:w-12 sm:h-12 object-contain drop-shadow-md flex-shrink-0 hover:scale-105 transition-transform select-none"
             onError={(e) => {
-              (e.currentTarget as HTMLImageElement).src = './logo_han.svg';
+              (e.currentTarget as HTMLImageElement).src = 'logo_han.svg';
             }}
           />
           <div>
