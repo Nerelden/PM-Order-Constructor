@@ -87,7 +87,7 @@ export default function App() {
   // 1. Firebase Auth listener
   useEffect(() => {
     const unsubscribe = initAuth(
-      (authedUser, token) => {
+      (authedUser: any, token: any) => {
         setUser(authedUser);
         if (token) setAccessToken(token);
         setIsAuthLoading(false);
