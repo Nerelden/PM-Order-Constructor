@@ -27,6 +27,7 @@ import {
   RotateCcw
 } from 'lucide-react';
 import { OrderContract, VisualTheme, getOrderRgb } from '../types';
+import { LOGO_HAN_PNG, LOGO_HAN_DATA_URL } from '../assets/logo';
 
 interface OrderSheetProps {
   order: OrderContract;
@@ -99,11 +100,11 @@ export const OrderSheet: React.FC<OrderSheetProps> = ({
         ) {
           return (
             <img
-              src="/logo_han.png"
+              src={LOGO_HAN_PNG}
               alt="Хана"
               className="w-7 h-7 object-contain drop-shadow"
               onError={(e) => {
-                (e.currentTarget as HTMLImageElement).src = '/logo_han.svg';
+                (e.currentTarget as HTMLImageElement).src = LOGO_HAN_DATA_URL;
               }}
             />
           );

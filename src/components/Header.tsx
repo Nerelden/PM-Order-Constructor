@@ -14,6 +14,7 @@ import {
   UserCheck
 } from 'lucide-react';
 import { VisualTheme, ClientCategory, MAX_ORDERS_COUNT } from '../types';
+import { LOGO_HAN_PNG, LOGO_HAN_DATA_URL } from '../assets/logo';
 
 interface HeaderProps {
   user: User | null;
@@ -87,11 +88,11 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Brand & Emblem */}
         <div className="flex items-center gap-3">
           <img
-            src="logo_han.png"
+            src={LOGO_HAN_PNG}
             alt="Герб Ассоциации Хана"
-            className="w-11 h-11 sm:w-12 sm:h-12 object-contain drop-shadow-md flex-shrink-0 hover:scale-105 transition-transform select-none"
+            className="w-12 h-12 sm:w-14 sm:h-14 object-contain drop-shadow-md flex-shrink-0 hover:scale-105 transition-transform select-none"
             onError={(e) => {
-              (e.currentTarget as HTMLImageElement).src = 'logo_han.svg';
+              (e.currentTarget as HTMLImageElement).src = LOGO_HAN_DATA_URL;
             }}
           />
           <div>

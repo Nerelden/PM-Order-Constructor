@@ -11,6 +11,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { loginWithEmail, getAuthErrorMessage } from '../services/firebaseAuth';
+import { LOGO_HAN_PNG, LOGO_HAN_DATA_URL } from '../assets/logo';
 
 interface AuthGateProps {
   onSuccess?: () => void;
@@ -58,11 +59,11 @@ export const AuthGate: React.FC<AuthGateProps> = () => {
         {/* Terminal Header */}
         <div className="text-center space-y-2">
           <img
-            src="/logo_han.png"
+            src={LOGO_HAN_PNG}
             alt="Герб Ассоциации Хана"
             className="w-14 h-14 mx-auto object-contain drop-shadow-lg select-none"
             onError={(e) => {
-              (e.currentTarget as HTMLImageElement).src = '/logo_han.svg';
+              (e.currentTarget as HTMLImageElement).src = LOGO_HAN_DATA_URL;
             }}
           />
           <div>
