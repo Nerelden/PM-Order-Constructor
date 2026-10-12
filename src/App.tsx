@@ -12,12 +12,7 @@ import {
   Search,
   Filter,
   FileDown,
-  Trash2,
-  Lock,
-  Mail,
-  KeyRound,
-  LogIn,
-  Loader2
+  Trash2
 } from 'lucide-react';
 import { OrderContract, VisualTheme, ClientCategory, MAX_ORDERS_COUNT } from './types';
 import { Header } from './components/Header';
@@ -30,12 +25,7 @@ import { ComparisonModal } from './components/ComparisonModal';
 import { ConfirmDeleteModal } from './components/ConfirmDeleteModal';
 import { ConfirmResetModal } from './components/ConfirmResetModal';
 import { PdfExportModal } from './components/PdfExportModal';
-import {
-  initAuth,
-  logout,
-  setAccessToken,
-  loginWithEmail
-} from './services/firebaseAuth';
+import { initAuth, googleSignIn, logout, setAccessToken } from './services/firebaseAuth';
 import {
   subscribeToRealtimeOrders,
   syncOrderToFirestore,
@@ -61,6 +51,7 @@ export default function App() {
     return [];
   });
 
+  const [, setIsLoading] = useState(true);
   const [theme, setTheme] = useState<VisualTheme>('parchment');
   const [categoryFilter, setCategoryFilter] = useState<'all' | ClientCategory>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'available' | 'in_progress' | 'completed'>('all');
@@ -68,11 +59,7 @@ export default function App() {
 
   // Auth State
   const [user, setUser] = useState<User | null>(null);
-  const [isAuthLoading, setIsAuthLoading] = useState(true);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [authError, setAuthError] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   // Modals
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
@@ -84,33 +71,12 @@ export default function App() {
   const [deletingOrder, setDeletingOrder] = useState<OrderContract | null>(null);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
 
-  // 1. Firebase Auth listener
+  // 1. Subscribe to Real-Time Multi-User Firestore Updates
   useEffect(() => {
-    const unsubscribe = initAuth(
-      (authedUser: any, token: any) => {
-        setUser(authedUser);
-        if (token) setAccessToken(token);
-        setIsAuthLoading(false);
-      },
-      () => {
-        setUser(null);
-        setAccessToken(null);
-        setIsAuthLoading(false);
-      }
-    );
-
-    return () => {
-      if (unsubscribe) unsubscribe();
-    };
-  }, []);
-
-  // 2. Subscribe to Real-Time Multi-User Firestore Updates
-  useEffect(() => {
-    if (!user) return;
-
     const unsubscribe = subscribeToRealtimeOrders(
       (remoteOrders) => {
         setOrders(remoteOrders);
+        setIsLoading(false);
         try {
           localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(remoteOrders));
         } catch (e) {
@@ -119,30 +85,45 @@ export default function App() {
       },
       (err) => {
         console.error('Realtime sync fallback:', err);
+        setIsLoading(false);
       }
     );
 
     return () => {
       if (unsubscribe) unsubscribe();
     };
-  }, [user]);
+  }, []);
 
-  // Email / Password Form Submit
-  const handleEmailLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setAuthError(null);
-    setIsSubmitting(true);
-    try {
-      if (loginWithEmail) {
-        await loginWithEmail(email, password);
-      } else {
-        throw new Error('Функция loginWithEmail не экспортирована из firebaseAuth');
+  // 2. Firebase Auth listener
+  useEffect(() => {
+    const unsubscribe = initAuth(
+      (authedUser, token) => {
+        setUser(authedUser);
+        setAccessToken(token);
+      },
+      () => {
+        setUser(null);
+        setAccessToken(null);
       }
-    } catch (err: any) {
-      setAuthError('Неверная почта или пароль.');
-      console.error('Email login error:', err);
+    );
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, []);
+
+  const handleLogin = async () => {
+    setIsLoggingIn(true);
+    try {
+      const res = await googleSignIn();
+      if (res) {
+        setUser(res.user);
+        setAccessToken(res.accessToken);
+      }
+    } catch (err) {
+      console.error('Login error:', err);
     } finally {
-      setIsSubmitting(false);
+      setIsLoggingIn(false);
     }
   };
 
@@ -150,7 +131,6 @@ export default function App() {
     try {
       await logout();
       setUser(null);
-      setAccessToken(null);
     } catch (err) {
       console.error('Logout error:', err);
     }
@@ -243,7 +223,7 @@ export default function App() {
     }
   };
 
-  // Complete wipe of all contracts
+  // Complete wipe of all contracts (resets to 0 contracts, no default ones restored)
   const handleConfirmReset = async () => {
     setOrders([]);
     localStorage.removeItem(LOCAL_STORAGE_KEY);
@@ -275,97 +255,14 @@ export default function App() {
     return true;
   });
 
-  // Экран загрузки сессии
-  if (isAuthLoading) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-[#0b0d11] text-stone-300">
-        <Loader2 className="w-8 h-8 animate-spin text-amber-500 mb-3" />
-        <span className="font-mono text-xs tracking-wider uppercase">Инициализация реестра...</span>
-      </div>
-    );
-  }
-
-  // Экран входа (только Email и пароль)
-  if (!user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#0b0d11] text-stone-100 p-4">
-        <div className="w-full max-w-md bg-stone-900/90 border border-stone-800 rounded-2xl p-6 sm:p-8 shadow-2xl backdrop-blur-sm space-y-6">
-          <div className="text-center space-y-2">
-            <div className="w-12 h-12 mx-auto rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
-              <Lock className="w-6 h-6" />
-            </div>
-            <h1 className="font-cinzel text-xl font-bold tracking-wide text-stone-100">
-              Вход в реестр заказов
-            </h1>
-            <p className="text-xs text-stone-400 font-mono">
-              Введите служебный email и пароль
-            </p>
-          </div>
-
-          {authError && (
-            <div className="p-3 rounded-lg bg-red-950/60 border border-red-800 text-red-300 text-xs font-mono">
-              {authError}
-            </div>
-          )}
-
-          <form onSubmit={handleEmailLogin} className="space-y-4">
-            <div className="space-y-1">
-              <label className="text-xs font-mono text-stone-400 flex items-center gap-1.5">
-                <Mail className="w-3.5 h-3.5" />
-                <span>Электронная почта</span>
-              </label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                placeholder="operative@city.local"
-                className="w-full px-3 py-2 bg-stone-950 border border-stone-800 rounded-lg text-sm text-stone-200 placeholder-stone-600 focus:outline-none focus:border-amber-500 font-mono"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-xs font-mono text-stone-400 flex items-center gap-1.5">
-                <KeyRound className="w-3.5 h-3.5" />
-                <span>Пароль</span>
-              </label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                placeholder="••••••••"
-                className="w-full px-3 py-2 bg-stone-950 border border-stone-800 rounded-lg text-sm text-stone-200 placeholder-stone-600 focus:outline-none focus:border-amber-500 font-mono"
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full py-2.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-stone-950 font-bold text-xs flex items-center justify-center gap-2 transition-colors shadow-lg shadow-amber-950/40"
-            >
-              {isSubmitting ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <LogIn className="w-4 h-4" />
-              )}
-              <span>Войти по почте</span>
-            </button>
-          </form>
-        </div>
-      </div>
-    );
-  }
-
-  // Основной интерфейс
   return (
     <div className="min-h-screen flex flex-col bg-[#0b0d11] text-stone-100 selection:bg-amber-500/30 selection:text-amber-200">
       {/* Top Header */}
       <Header
         user={user}
-        onLogin={() => {}}
+        onLogin={handleLogin}
         onLogout={handleLogout}
-        isLoggingIn={false}
+        isLoggingIn={isLoggingIn}
         onOpenExportDialog={() => setIsExportModalOpen(true)}
         theme={theme}
         setTheme={setTheme}
@@ -395,7 +292,7 @@ export default function App() {
               </span>
             </div>
             <p className="text-xs text-stone-400 font-sans max-w-2xl">
-              Единый реестр контрактов. Авторизован: <span className="text-amber-300 font-mono">{user.email}</span>. Любое создание или изменение заказов синхронизируется у всех участников.
+              Единый реестр контрактов. Любое создание, удаление или изменение заказа мгновенно синхронизируется у всех пользователей. Доступно до 10 заказов с печатью и экспортом в PDF.
             </p>
           </div>
 
@@ -444,6 +341,7 @@ export default function App() {
         {/* Filter & Search Bar */}
         {orders.length > 0 && (
           <section className="no-print flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-stone-950/70 p-3 rounded-xl border border-stone-800/80 text-xs">
+            {/* Search */}
             <div className="relative flex-1 max-w-md">
               <Search className="w-4 h-4 text-stone-500 absolute left-3 top-2.5" />
               <input
@@ -455,6 +353,7 @@ export default function App() {
               />
             </div>
 
+            {/* Status filter */}
             <div className="flex items-center gap-2">
               <span className="text-stone-500 font-mono text-[11px] flex items-center gap-1">
                 <Filter className="w-3 h-3" />
@@ -588,6 +487,8 @@ export default function App() {
             <span>Слоты: {orders.length}/{MAX_ORDERS_COUNT}</span>
             <span>•</span>
             <span>Синхронизация Firestore</span>
+            <span>•</span>
+            <span>Google Sheets Sync</span>
           </div>
         </div>
       </footer>
