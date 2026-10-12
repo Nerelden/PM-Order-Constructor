@@ -25,7 +25,7 @@ jobs:
           node-version: 20
 
       - name: Install dependencies
-        run: npm install # Установка всех пакетов, включая Firebase
+        run: npm install --legacy-peer-deps # Установка всех пакетов, включая Firebase
 
       - name: Build project
         run: npm run build --if-present || npx tsc # Пытается собрать проект стандартной командой или через компилятор TS
