@@ -23,6 +23,15 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
 
   const printableContainerRef = useRef<HTMLDivElement>(null);
 
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const ordersToExport =
@@ -159,7 +168,7 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
       (o) => `
     <div class="order-card">
       <div style="display:flex; justify-content:space-between;">
-        <span class="order-code">${o.code} • ${o.associationName}</span>
+        <span class="order-code">${o.code} • ${o.client}</span>
         <span class="meta">${o.status === 'available' ? 'ДОСТУПЕН' : o.status === 'in_progress' ? 'В РАБОТЕ (' + (o.signedDate || 'Принят') + ')' : 'ВЫПОЛНЕН'}</span>
       </div>
       <div class="order-title">${o.title}</div>
@@ -212,13 +221,20 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
+    <div
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md animate-in fade-in duration-200"
+    >
       <div className="bg-[#12141a] border border-amber-900/50 rounded-2xl max-w-3xl w-full p-5 sm:p-6 shadow-2xl relative text-stone-200 max-h-[92vh] overflow-y-auto">
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 text-stone-400 hover:text-white p-1 rounded-lg transition-colors"
+          type="button"
+          aria-label="Закрыть окно"
+          className="absolute top-4 right-4 z-30 w-8 h-8 flex items-center justify-center rounded-xl bg-stone-900/90 hover:bg-red-950/80 border border-stone-800 hover:border-red-600/50 text-stone-400 hover:text-red-300 transition-all shadow-md cursor-pointer"
         >
-          <X className="w-5 h-5" />
+          <X className="w-4 h-4" />
         </button>
 
         {/* Modal Header */}
@@ -373,14 +389,20 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
 
                         <div className="flex items-center justify-between border-b border-stone-800 pb-2 relative z-10">
                           <div className="font-mono font-bold text-xs" style={{ color: rgbStr }}>
-                            {order.code} • {order.associationName}
+                            {order.code} • {order.client}
                           </div>
-                          <div className="text-[10px] font-mono px-2 py-0.5 rounded bg-stone-800 text-stone-300">
+                          <div className={`text-[10px] font-mono px-2 py-0.5 rounded ${
+                            order.status === 'failed'
+                              ? 'bg-red-950 text-red-300 border border-red-600/50 font-bold'
+                              : 'bg-stone-800 text-stone-300'
+                          }`}>
                             {order.status === 'available'
                               ? 'ДОСТУПЕН'
                               : order.status === 'in_progress'
                               ? `В РАБОТЕ (${order.signedDate || 'Принят'})`
-                              : 'ВЫПОЛНЕН'}
+                              : order.status === 'completed'
+                              ? 'ВЫПОЛНЕН'
+                              : 'ПРОВАЛЕНО'}
                           </div>
                         </div>
 

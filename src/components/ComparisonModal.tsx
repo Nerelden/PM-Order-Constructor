@@ -15,6 +15,15 @@ export const ComparisonModal: React.FC<ComparisonModalProps> = ({
   onClose,
   onSelectOrder,
 }) => {
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen || orders.length < 2) return null;
 
   const [order1Id, setOrder1Id] = useState<string>(orders[0]?.id || '');
@@ -24,13 +33,20 @@ export const ComparisonModal: React.FC<ComparisonModalProps> = ({
   const order2 = orders.find((o) => o.id === order2Id) || orders[1] || orders[0];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
+    <div
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md animate-in fade-in duration-200"
+    >
       <div className="bg-[#12141a] border border-amber-900/40 rounded-2xl max-w-4xl w-full p-5 sm:p-7 shadow-2xl relative text-stone-200 max-h-[90vh] overflow-y-auto">
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 text-stone-400 hover:text-white p-1 rounded-lg transition-colors"
+          type="button"
+          aria-label="Закрыть окно"
+          className="absolute top-4 right-4 z-30 w-8 h-8 flex items-center justify-center rounded-xl bg-stone-900/90 hover:bg-red-950/80 border border-stone-800 hover:border-red-600/50 text-stone-400 hover:text-red-300 transition-all shadow-md cursor-pointer"
         >
-          <X className="w-5 h-5" />
+          <X className="w-4 h-4" />
         </button>
 
         <div className="flex items-center gap-3 mb-5">
@@ -94,7 +110,7 @@ export const ComparisonModal: React.FC<ComparisonModalProps> = ({
                   {order1.code}
                 </span>
                 <span className="text-xs font-bold text-stone-400 uppercase font-mono">
-                  {order1.associationName}
+                  {order1.client}
                 </span>
               </div>
               <h3 className="font-serif-header text-base font-bold text-stone-100">
@@ -158,7 +174,7 @@ export const ComparisonModal: React.FC<ComparisonModalProps> = ({
                   {order2.code}
                 </span>
                 <span className="text-xs font-bold text-stone-400 uppercase font-mono">
-                  {order2.associationName}
+                  {order2.client}
                 </span>
               </div>
               <h3 className="font-serif-header text-base font-bold text-stone-100">

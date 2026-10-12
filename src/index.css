@@ -9,7 +9,8 @@
 }
 
 .font-cinzel {
-  font-family: 'Cinzel', serif;
+  font-family: 'Lora', 'Georgia', serif;
+  letter-spacing: 0.02em;
 }
 
 .font-mono-code {
@@ -17,7 +18,7 @@
 }
 
 .font-serif-header {
-  font-family: 'Playfair Display', serif;
+  font-family: 'Lora', 'Georgia', serif;
 }
 
 /* Authentic Paper and Terminal textures */

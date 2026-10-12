@@ -6,7 +6,6 @@ import {
   deleteDoc,
   onSnapshot,
   getDocs,
-  getDocFromServer,
   writeBatch
 } from 'firebase/firestore';
 import { getApps, initializeApp, getApp } from 'firebase/app';
@@ -16,7 +15,9 @@ import { auth } from './firebaseAuth';
 
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
-export const db = getFirestore(app, (firebaseConfig as any).firestoreDatabaseId);
+export const db = (firebaseConfig as any).firestoreDatabaseId
+  ? getFirestore(app, (firebaseConfig as any).firestoreDatabaseId)
+  : getFirestore(app);
 
 export enum OperationType {
   CREATE = 'create',
@@ -80,23 +81,10 @@ export function sanitizeForFirestore(obj: any): any {
   return cleaned;
 }
 
-// Test connection on boot as mandated by skill
-export async function testConnection() {
-  try {
-    await getDocFromServer(doc(db, 'orders', 'test-connection'));
-  } catch (error) {
-    if (error instanceof Error && error.message.includes('the client is offline')) {
-      console.warn('Firestore offline:', error.message);
-    }
-  }
-}
-testConnection();
-
 const ORDERS_COLLECTION = 'orders';
 
 /**
  * Subscribes to the real-time orders collection in Firestore.
- * If empty, delivers empty array ([]) without automatically re-seeding.
  */
 export const subscribeToRealtimeOrders = (
   onUpdate: (orders: OrderContract[]) => void,
@@ -131,7 +119,6 @@ export const subscribeToRealtimeOrders = (
 
 /**
  * Saves a new or updated order to Firestore in real-time.
- * Automatically sanitizes any undefined fields to prevent Firestore serialization errors.
  */
 export const syncOrderToFirestore = async (order: OrderContract) => {
   const docRef = doc(db, ORDERS_COLLECTION, order.id);
@@ -176,24 +163,6 @@ export const clearAllOrdersFromFirestore = async () => {
       batch.delete(d.ref);
     });
 
-    await batch.commit();
-  } catch (err) {
-    handleFirestoreError(err, OperationType.WRITE, ORDERS_COLLECTION);
-    throw err;
-  }
-};
-
-/**
- * Explicit helper to populate sample orders only if user manually requests it.
- */
-export const seedSampleOrdersInFirestore = async (samples: OrderContract[]) => {
-  try {
-    const batch = writeBatch(db);
-    samples.forEach((order) => {
-      const docRef = doc(db, ORDERS_COLLECTION, order.id);
-      const sanitized = sanitizeForFirestore({ ...order, updatedAt: Date.now() });
-      batch.set(docRef, sanitized);
-    });
     await batch.commit();
   } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, ORDERS_COLLECTION);

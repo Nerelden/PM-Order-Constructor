@@ -61,6 +61,16 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
   const [newThreatInput, setNewThreatInput] = useState('');
   const [newDirectiveInput, setNewDirectiveInput] = useState('');
 
+  // Escape key handler
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   // Reset all fields completely
@@ -162,13 +172,20 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
+    <div
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md animate-in fade-in duration-200"
+    >
       <div className="bg-[#12141a] border border-amber-900/50 rounded-2xl max-w-3xl w-full p-5 sm:p-7 shadow-2xl relative text-stone-200 max-h-[92vh] overflow-y-auto">
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 text-stone-400 hover:text-white p-1 rounded-lg transition-colors"
+          type="button"
+          aria-label="Закрыть окно"
+          className="absolute top-4 right-4 z-30 w-8 h-8 flex items-center justify-center rounded-xl bg-stone-900/90 hover:bg-red-950/80 border border-stone-800 hover:border-red-600/50 text-stone-400 hover:text-red-300 transition-all shadow-md cursor-pointer"
         >
-          <X className="w-5 h-5" />
+          <X className="w-4 h-4" />
         </button>
 
         {/* Modal Header */}
@@ -192,7 +209,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
             <button
               type="button"
               onClick={handleResetForm}
-              className="px-3 py-1.5 rounded-xl bg-stone-900 hover:bg-stone-800 text-stone-400 hover:text-amber-300 text-xs font-mono flex items-center gap-1.5 border border-stone-800 transition-colors"
+              className="px-3 py-1.5 rounded-xl bg-stone-900 hover:bg-stone-800 text-stone-400 hover:text-amber-300 text-xs font-mono flex items-center gap-1.5 border border-stone-800 transition-colors cursor-pointer"
               title="Очистить все поля формы"
             >
               <RotateCcw className="w-3.5 h-3.5" />
@@ -218,7 +235,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
           <div className="p-3.5 mb-5 rounded-xl bg-red-950/40 border border-red-500/40 text-xs text-red-200 flex items-start gap-2.5">
             <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
             <div>
-              <strong>Достигнут максимальный лимит в 10 заказов!</strong>
+              <strong>Достигнут максимальный лимит в {MAX_ORDERS_COUNT} заказов!</strong>
               <p className="text-red-300/80 mt-0.5">
                 Чтобы создать новый лист, удалите один из существующих заказов на доске.
               </p>
@@ -479,39 +496,65 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
             </div>
           </div>
 
-          {/* Reward & Bonus */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-stone-300 uppercase tracking-wider mb-1 font-mono">
-                Вознаграждение в Ан (Ahn) *
-              </label>
-              <input
-                type="number"
-                value={rewardAhn}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setRewardAhn(val === '' ? '' : Number(val));
-                }}
-                required
-                placeholder="0"
-                className="w-full px-3 py-2 bg-stone-900 border border-stone-700 rounded-lg text-sm text-amber-300 font-mono-code placeholder-stone-500 focus:outline-none focus:border-amber-500"
-              />
+          {/* РАЗГРАНИЧЕНИЕ ВОЗНАГРАЖДЕНИЯ В КОНСТРУКТОРЕ */}
+          <div className="p-4 rounded-xl bg-stone-950/70 border border-stone-800 space-y-3">
+            <div className="flex items-center justify-between border-b border-stone-800 pb-2">
+              <span className="text-xs font-semibold text-stone-300 uppercase tracking-wider font-mono">
+                Разграничение вознаграждения
+              </span>
+              <span className="text-xs font-mono font-bold text-amber-300 bg-amber-950/80 px-2 py-0.5 rounded border border-amber-500/40">
+                Итого: {typeof rewardAhn === 'number' && rewardAhn > 0 ? `${rewardAhn.toLocaleString('ru-RU')} Ан` : '0 Ан'}
+              </span>
             </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-stone-300 uppercase tracking-wider mb-1 font-mono">
-                Дополнительный бонус (необязательно)
-              </label>
-              <input
-                type="text"
-                value={rewardBonus}
-                onChange={(e) => setRewardBonus(e.target.value)}
-                placeholder="Укажите дополнительный бонус (необязательно)"
-                className="w-full px-3 py-2 bg-stone-900 border border-stone-700 rounded-lg text-xs text-stone-200 placeholder-stone-500 focus:outline-none focus:border-amber-500"
-              />
-              <span className="text-[10px] text-stone-500 font-mono mt-0.5 block">
-                Если оставить пустым — блок бонуса не будет отображаться в заказе
-              </span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-stone-300 uppercase tracking-wider mb-1 font-mono">
+                  1. Базовое вознаграждение в Ан (Ahn) *
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  step={1000}
+                  value={rewardAhn}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setRewardAhn(val === '' ? '' : Number(val));
+                  }}
+                  required
+                  placeholder="0"
+                  className="w-full px-3 py-2 bg-stone-900 border border-stone-700 rounded-lg text-sm text-amber-300 font-mono-code font-bold placeholder-stone-500 focus:outline-none focus:border-amber-500"
+                />
+                <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                  <span className="text-[10px] font-mono text-stone-500">Быстро:</span>
+                  {[50000, 100000, 250000, 500000, 1000000].map((amt) => (
+                    <button
+                      key={amt}
+                      type="button"
+                      onClick={() => setRewardAhn(amt)}
+                      className="px-2 py-0.5 rounded bg-stone-900 hover:bg-stone-800 text-[10px] font-mono text-amber-200/90 border border-stone-800 hover:border-amber-500/50 transition-colors cursor-pointer"
+                    >
+                      {amt.toLocaleString('ru-RU')} Ан
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-stone-300 uppercase tracking-wider mb-1 font-mono">
+                  2. Дополнительный бонус (Опционально)
+                </label>
+                <input
+                  type="text"
+                  value={rewardBonus}
+                  onChange={(e) => setRewardBonus(e.target.value)}
+                  placeholder="Укажите дополнительный бонус (необязательно)"
+                  className="w-full px-3 py-2 bg-stone-900 border border-stone-700 rounded-lg text-xs text-stone-200 placeholder-stone-500 focus:outline-none focus:border-amber-500"
+                />
+                <span className="text-[10px] text-stone-500 font-mono mt-1 block">
+                  Если оставить пустым — блок бонуса не будет отображаться в заказе
+                </span>
+              </div>
             </div>
           </div>
 
@@ -586,9 +629,10 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
               <button
                 type="button"
                 onClick={handleAddThreat}
-                className="px-3 py-1.5 bg-stone-800 hover:bg-stone-700 text-stone-200 rounded-lg text-xs font-semibold"
+                className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-stone-950 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-md shadow-amber-950/40 transition-colors cursor-pointer flex-shrink-0"
               >
-                + Добавить
+                <Plus className="w-3.5 h-3.5" />
+                <span>Добавить</span>
               </button>
             </div>
           </div>

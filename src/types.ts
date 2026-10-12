@@ -46,7 +46,7 @@ export interface OrderContract {
   threats: string[];
   details: string;
   tacticalNotes?: string[];
-  status: 'available' | 'in_progress' | 'completed';
+  status: 'available' | 'in_progress' | 'completed' | 'failed';
   assignedFixer?: string;
   assignedOffice?: string;
   signedDate?: string;
@@ -56,7 +56,7 @@ export interface OrderContract {
 
 export type VisualTheme = 'parchment' | 'terminal';
 
-export const MAX_ORDERS_COUNT = 10;
+export const MAX_ORDERS_COUNT = 999;
 
 // Helper functions for RGB and Hex color conversions
 export function hexToRgb(hex: string): RGBColor {
