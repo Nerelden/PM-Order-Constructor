@@ -20,6 +20,7 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
   const [colorRgb, setColorRgb] = useState<RGBColor>(order ? getOrderRgb(order) : { r: 217, g: 119, b: 6 });
   const [directivesText, setDirectivesText] = useState<string>('');
   const [newThreatInput, setNewThreatInput] = useState('');
+  const [rewardAhnInput, setRewardAhnInput] = useState<string>(order ? String(order.rewardAhn ?? 0) : '0');
 
   // Synchronize state when order changes or modal opens
   React.useEffect(() => {
@@ -28,6 +29,7 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
       setColorRgb(getOrderRgb(order));
       setDirectivesText((order.tacticalNotes || []).join('\n'));
       setNewThreatInput('');
+      setRewardAhnInput(String(order.rewardAhn ?? 0));
     }
   }, [order, isOpen]);
 
@@ -81,6 +83,7 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
       associationRole: formData.associationRole?.trim() || '',
       colorRgb,
       colorHex: rgbToHex(colorRgb.r, colorRgb.g, colorRgb.b),
+      rewardAhn: Number(rewardAhnInput.replace(/[^\d]/g, '')) || 0,
       rewardBonus: formData.rewardBonus?.trim() || '',
       threats: formData.threats && formData.threats.length > 0 ? formData.threats : ['Стандартные условия'],
       tacticalNotes: parsedDirectives,
@@ -92,12 +95,7 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
   };
 
   return (
-    <div
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md animate-in fade-in duration-200"
-    >
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
       <div className="bg-[#14161c] border border-amber-900/50 rounded-2xl max-w-2xl w-full p-5 sm:p-6 shadow-2xl relative text-stone-200 max-h-[90vh] overflow-y-auto">
         <button
           onClick={onClose}
@@ -303,7 +301,7 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
                 Разграничение вознаграждения
               </span>
               <span className="text-xs font-mono font-bold text-amber-300 bg-amber-950/80 px-2 py-0.5 rounded border border-amber-500/40">
-                Итого: {Number(formData.rewardAhn || 0).toLocaleString('ru-RU')} Ан
+                Итого: {Number(rewardAhnInput.replace(/[^\d]/g, '') || 0).toLocaleString('ru-RU')} Ан
               </span>
             </div>
 
@@ -313,13 +311,14 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
                   1. Базовая сумма (Ан / Ahn) *
                 </label>
                 <input
-                  type="number"
-                  min={0}
-                  step={1000}
-                  value={formData.rewardAhn}
-                  onChange={(e) =>
-                    setFormData({ ...formData, rewardAhn: Number(e.target.value) || 0 })
-                  }
+                  type="text"
+                  inputMode="numeric"
+                  value={rewardAhnInput}
+                  onChange={(e) => {
+                    const clean = e.target.value.replace(/[^\d]/g, '');
+                    setRewardAhnInput(clean);
+                    setFormData((prev) => (prev ? { ...prev, rewardAhn: Number(clean) || 0 } : null));
+                  }}
                   placeholder="0"
                   className="w-full px-3 py-2 bg-stone-900 border border-stone-700 rounded-lg text-sm text-amber-300 placeholder-stone-500 focus:outline-none focus:border-amber-500 font-mono-code font-bold"
                 />
@@ -329,10 +328,13 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
                     <button
                       key={amt}
                       type="button"
-                      onClick={() => setFormData({ ...formData, rewardAhn: amt })}
-                      className="px-2 py-0.5 rounded bg-stone-900 hover:bg-stone-800 text-[10px] font-mono text-amber-300/90 border border-stone-800 hover:border-amber-500/50"
+                      onClick={() => {
+                        setRewardAhnInput(String(amt));
+                        setFormData((prev) => (prev ? { ...prev, rewardAhn: amt } : null));
+                      }}
+                      className="px-2 py-0.5 rounded bg-stone-900 hover:bg-stone-800 text-[10px] font-mono text-amber-300/90 border border-stone-800 hover:border-amber-500/50 cursor-pointer"
                     >
-                      {amt.toLocaleString('ru-RU')}
+                      {amt.toLocaleString('ru-RU')} Ан
                     </button>
                   ))}
                 </div>

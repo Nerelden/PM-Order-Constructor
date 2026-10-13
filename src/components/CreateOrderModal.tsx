@@ -49,7 +49,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
   const [gradeRequirement, setGradeRequirement] = useState('');
   const [location, setLocation] = useState('');
   const [threatRating, setThreatRating] = useState('Городской Миф (Urban Myth)');
-  const [rewardAhn, setRewardAhn] = useState<number | ''>('');
+  const [rewardAhn, setRewardAhn] = useState<string>('100000');
   const [rewardBonus, setRewardBonus] = useState('');
   const [objective, setObjective] = useState('');
   const [background, setBackground] = useState('');
@@ -156,7 +156,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
       gradeRequirement: gradeRequirement.trim() || 'Без ограничений',
       location: location.trim() || 'Район Города',
       threatRating,
-      rewardAhn: Number(rewardAhn) || 0,
+      rewardAhn: Number(rewardAhn.replace(/[^\d]/g, '')) || 0,
       rewardBonus: rewardBonus.trim(),
       objective: objective.trim(),
       background: background.trim(),
@@ -172,12 +172,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
   };
 
   return (
-    <div
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md animate-in fade-in duration-200"
-    >
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
       <div className="bg-[#12141a] border border-amber-900/50 rounded-2xl max-w-3xl w-full p-5 sm:p-7 shadow-2xl relative text-stone-200 max-h-[92vh] overflow-y-auto">
         <button
           onClick={onClose}
@@ -503,7 +498,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
                 Разграничение вознаграждения
               </span>
               <span className="text-xs font-mono font-bold text-amber-300 bg-amber-950/80 px-2 py-0.5 rounded border border-amber-500/40">
-                Итого: {typeof rewardAhn === 'number' && rewardAhn > 0 ? `${rewardAhn.toLocaleString('ru-RU')} Ан` : '0 Ан'}
+                Итого: {Number(rewardAhn.replace(/[^\d]/g, '') || 0).toLocaleString('ru-RU')} Ан
               </span>
             </div>
 
@@ -513,15 +508,13 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
                   1. Базовое вознаграждение в Ан (Ahn) *
                 </label>
                 <input
-                  type="number"
-                  min={0}
-                  step={1000}
+                  type="text"
+                  inputMode="numeric"
                   value={rewardAhn}
                   onChange={(e) => {
-                    const val = e.target.value;
-                    setRewardAhn(val === '' ? '' : Number(val));
+                    const clean = e.target.value.replace(/[^\d]/g, '');
+                    setRewardAhn(clean);
                   }}
-                  required
                   placeholder="0"
                   className="w-full px-3 py-2 bg-stone-900 border border-stone-700 rounded-lg text-sm text-amber-300 font-mono-code font-bold placeholder-stone-500 focus:outline-none focus:border-amber-500"
                 />
@@ -531,7 +524,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
                     <button
                       key={amt}
                       type="button"
-                      onClick={() => setRewardAhn(amt)}
+                      onClick={() => setRewardAhn(String(amt))}
                       className="px-2 py-0.5 rounded bg-stone-900 hover:bg-stone-800 text-[10px] font-mono text-amber-200/90 border border-stone-800 hover:border-amber-500/50 transition-colors cursor-pointer"
                     >
                       {amt.toLocaleString('ru-RU')} Ан

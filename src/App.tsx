@@ -81,6 +81,17 @@ export default function App() {
   const [deletingOrder, setDeletingOrder] = useState<OrderContract | null>(null);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
 
+  // Track viewport size for 2-column masonry (prevents vertical gaps from CSS grid row height stretching)
+  const [isLg, setIsLg] = useState(() => (typeof window !== 'undefined' ? window.innerWidth >= 1024 : true));
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsLg(window.innerWidth >= 1024);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   // 1. Firebase Auth listener
   useEffect(() => {
     const unsubscribe = subscribeToAuth((authedUser) => {
@@ -328,6 +339,61 @@ export default function App() {
 
   const totalCompletedCount = orders.filter((o) => o.status === 'completed').length;
   const totalFailedCount = orders.filter((o) => o.status === 'failed').length;
+
+  // Render orders in a 2-column masonry on desktop so shorter cards pull up snugly without empty gaps
+  const renderOrdersGrid = (ordersToRender: OrderContract[]) => {
+    const renderCard = (order: OrderContract) => (
+      <OrderSheet
+        key={order.id}
+        order={order}
+        theme={theme}
+        forceExpanded={allExpanded}
+        isReadOnly={isGuest}
+        onSignClick={(o) => {
+          if (isGuest) return;
+          setSigningOrder(o);
+        }}
+        onEditClick={(o) => {
+          if (isGuest) return;
+          setEditingOrder(o);
+        }}
+        onDeleteClick={(id) => {
+          if (isGuest) return;
+          const target = orders.find((ord) => ord.id === id);
+          if (target) setDeletingOrder(target);
+        }}
+        onPrintClick={() => {
+          setEditingOrder(null);
+          setIsPdfModalOpen(true);
+        }}
+        onStatusChange={handleStatusChange}
+        onUnarchive={handleUnarchive}
+        onClearStamp={handleClearStamp}
+      />
+    );
+
+    if (!isLg || ordersToRender.length <= 1) {
+      return (
+        <div className="flex flex-col gap-6 sm:gap-7 transition-all">
+          {ordersToRender.map(renderCard)}
+        </div>
+      );
+    }
+
+    const leftCol = ordersToRender.filter((_, idx) => idx % 2 === 0);
+    const rightCol = ordersToRender.filter((_, idx) => idx % 2 === 1);
+
+    return (
+      <div className="grid grid-cols-2 gap-6 sm:gap-7 items-start transition-all">
+        <div className="flex flex-col gap-6 sm:gap-7">
+          {leftCol.map(renderCard)}
+        </div>
+        <div className="flex flex-col gap-6 sm:gap-7">
+          {rightCol.map(renderCard)}
+        </div>
+      </div>
+    );
+  };
 
   // Initial Auth Check Spinner
   if (isAuthChecking) {
@@ -586,37 +652,7 @@ export default function App() {
               )}
             </div>
           ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-7 items-start transition-all">
-              {displayedActiveOrders.map((order) => (
-                <OrderSheet
-                  key={order.id}
-                  order={order}
-                  theme={theme}
-                  forceExpanded={allExpanded}
-                  isReadOnly={isGuest}
-                  onSignClick={(o) => {
-                    if (isGuest) return;
-                    setSigningOrder(o);
-                  }}
-                  onEditClick={(o) => {
-                    if (isGuest) return;
-                    setEditingOrder(o);
-                  }}
-                  onDeleteClick={(id) => {
-                    if (isGuest) return;
-                    const target = orders.find((o) => o.id === id);
-                    if (target) setDeletingOrder(target);
-                  }}
-                  onPrintClick={() => {
-                    setEditingOrder(null);
-                    setIsPdfModalOpen(true);
-                  }}
-                  onStatusChange={handleStatusChange}
-                  onUnarchive={handleUnarchive}
-                  onClearStamp={handleClearStamp}
-                />
-              ))}
-            </div>
+            renderOrdersGrid(displayedActiveOrders)
           )}
         </section>
 
@@ -680,37 +716,7 @@ export default function App() {
                   Нет архивных дел, соответствующих фильтру.
                 </div>
               ) : (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-7 items-start">
-                  {displayedArchivedOrders.map((order) => (
-                    <OrderSheet
-                      key={order.id}
-                      order={order}
-                      theme={theme}
-                      forceExpanded={allExpanded}
-                      isReadOnly={isGuest}
-                      onSignClick={(o) => {
-                        if (isGuest) return;
-                        setSigningOrder(o);
-                      }}
-                      onEditClick={(o) => {
-                        if (isGuest) return;
-                        setEditingOrder(o);
-                      }}
-                      onDeleteClick={(id) => {
-                        if (isGuest) return;
-                        const target = orders.find((o) => o.id === id);
-                        if (target) setDeletingOrder(target);
-                      }}
-                      onPrintClick={() => {
-                        setEditingOrder(null);
-                        setIsPdfModalOpen(true);
-                      }}
-                      onStatusChange={handleStatusChange}
-                      onUnarchive={handleUnarchive}
-                      onClearStamp={handleClearStamp}
-                    />
-                  ))}
-                </div>
+                renderOrdersGrid(displayedArchivedOrders)
               )}
             </div>
           )}
