@@ -8,9 +8,10 @@ import {
   EyeOff,
   LogIn,
   Loader2,
-  AlertCircle
+  AlertCircle,
+  UserCheck
 } from 'lucide-react';
-import { loginWithEmail, getAuthErrorMessage } from '../services/firebaseAuth';
+import { loginWithEmail, loginAsGuest, getAuthErrorMessage } from '../services/firebaseAuth';
 import { LOGO_HAN_PNG, LOGO_HAN_DATA_URL } from '../assets/logo';
 
 interface AuthGateProps {
@@ -39,6 +40,19 @@ export const AuthGate: React.FC<AuthGateProps> = () => {
       await loginWithEmail(trimmedEmail, password);
     } catch (err: any) {
       console.error('Auth error:', err);
+      setErrorMessage(getAuthErrorMessage(err));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleGuestLogin = async () => {
+    setIsLoading(true);
+    setErrorMessage(null);
+    try {
+      await loginAsGuest();
+    } catch (err: any) {
+      console.error('Guest login error:', err);
       setErrorMessage(getAuthErrorMessage(err));
     } finally {
       setIsLoading(false);
@@ -151,9 +165,31 @@ export const AuthGate: React.FC<AuthGateProps> = () => {
           </button>
         </form>
 
+        <div className="relative flex items-center justify-center pt-1">
+          <div className="border-t border-stone-800 w-full" />
+          <span className="bg-[#12141a] px-3 text-[10px] font-mono text-stone-500 uppercase tracking-widest">
+            или
+          </span>
+          <div className="border-t border-stone-800 w-full" />
+        </div>
+
+        <button
+          type="button"
+          onClick={handleGuestLogin}
+          disabled={isLoading}
+          className="w-full py-2.5 rounded-xl bg-stone-900/90 hover:bg-stone-800 border border-stone-700 hover:border-amber-500/60 text-stone-300 hover:text-white font-mono text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md"
+        >
+          <UserCheck className="w-4 h-4 text-amber-400" />
+          <span>Войти как гость (Режим чтения)</span>
+        </button>
+
+        <p className="text-[11px] text-center text-stone-400 font-mono leading-relaxed">
+          Гостевой режим позволяет просматривать, разворачивать и печатать бланки без прав создания, изменения и удаления заказов.
+        </p>
+
         <div className="border-t border-stone-800/80 pt-4 text-center text-[11px] font-mono text-stone-500 space-y-1">
-          <div>Доступ разрешен только зарегистрированным сотрудникам</div>
-          <div className="text-[10px] text-stone-600">Синхронизация Firestore • PM-Order-Constructor</div>
+          <div>Доступ к изменению разрешен только зарегистрированным сотрудникам</div>
+          <div className="text-[10px] text-stone-600">Синхронизация Firestore • Архив Ассоциации Хана</div>
         </div>
       </div>
     </div>

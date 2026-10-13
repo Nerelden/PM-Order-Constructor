@@ -6,21 +6,28 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
-    // Public orders board - synced for all users in real-time
+    // Helper: check if request is from an authenticated non-anonymous staff user
+    function isStaff() {
+      return request.auth != null && request.auth.token.firebase.sign_in_provider != 'anonymous';
+    }
+
+    // Orders registry:
+    // - Read allowed to everyone (including guests in read-only mode)
+    // - Create, update, and delete strictly forbidden for guests; allowed only for staff
     match /orders/{orderId} {
       allow read: if true;
-      allow create: if request.resource.data.id is string
+      allow create: if isStaff()
+                    && request.resource.data.id is string
                     && request.resource.data.id.size() <= 128
                     && request.resource.data.title is string
                     && request.resource.data.title.size() <= 300
                     && request.resource.data.code is string
-                    && request.resource.data.code.size() <= 64
-                    && request.resource.data.status in ['available', 'in_progress', 'completed'];
-      allow update: if request.resource.data.id is string
+                    && request.resource.data.code.size() <= 64;
+      allow update: if isStaff()
+                    && request.resource.data.id is string
                     && request.resource.data.title is string
-                    && request.resource.data.title.size() <= 300
-                    && request.resource.data.status in ['available', 'in_progress', 'completed'];
-      allow delete: if true;
+                    && request.resource.data.title.size() <= 300;
+      allow delete: if isStaff();
     }
   }
 }

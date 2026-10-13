@@ -31,7 +31,7 @@ import { ConfirmDeleteModal } from './components/ConfirmDeleteModal';
 import { ConfirmResetModal } from './components/ConfirmResetModal';
 import { PdfExportModal } from './components/PdfExportModal';
 import { AuthGate } from './components/AuthGate';
-import { subscribeToAuth, logout } from './services/firebaseAuth';
+import { subscribeToAuth, logout, isGuestUser } from './services/firebaseAuth';
 import {
   subscribeToRealtimeOrders,
   syncOrderToFirestore,
@@ -69,6 +69,7 @@ export default function App() {
 
   // Strict Email Auth State
   const [user, setUser] = useState<User | null>(null);
+  const isGuest = isGuestUser(user);
   const [isAuthChecking, setIsAuthChecking] = useState(true);
 
   // Modals
@@ -136,6 +137,7 @@ export default function App() {
     orderId: string,
     newStatus: 'available' | 'in_progress' | 'completed' | 'failed'
   ) => {
+    if (isGuest) return;
     const target = orders.find((o) => o.id === orderId);
     if (!target) return;
     
@@ -165,11 +167,13 @@ export default function App() {
 
   // Restore/unarchive contract from archive without accepted status and without stamp
   const handleUnarchive = async (orderId: string) => {
+    if (isGuest) return;
     await handleStatusChange(orderId, 'available');
   };
 
   // Clear stamp and assigned fixer
   const handleClearStamp = async (orderId: string) => {
+    if (isGuest) return;
     const target = orders.find((o) => o.id === orderId);
     if (!target) return;
     const updated = {
@@ -198,6 +202,7 @@ export default function App() {
     stampText: string,
     signedDate: string
   ) => {
+    if (isGuest) return;
     const target = orders.find((o) => o.id === orderId);
     if (!target) return;
 
@@ -222,6 +227,7 @@ export default function App() {
 
   // Save edited order in real-time
   const handleSaveEditedOrder = async (updated: OrderContract) => {
+    if (isGuest) return;
     const withTimestamp = { ...updated, updatedAt: Date.now() };
     setOrders((prev) => prev.map((o) => (o.id === updated.id ? withTimestamp : o)));
 
@@ -234,6 +240,7 @@ export default function App() {
 
   // Add new order via constructor in real-time
   const handleAddOrder = async (newOrder: OrderContract) => {
+    if (isGuest) return;
     if (orders.length >= MAX_ORDERS_COUNT) {
       alert(`Достигнут максимальный лимит: ${MAX_ORDERS_COUNT} заказов в реестре.`);
       return;
@@ -251,6 +258,7 @@ export default function App() {
 
   // Delete order in real-time
   const handleConfirmDelete = async (orderId: string) => {
+    if (isGuest) return;
     setOrders((prev) => prev.filter((o) => o.id !== orderId));
     try {
       await deleteOrderFromFirestore(orderId);
@@ -261,6 +269,7 @@ export default function App() {
 
   // Complete wipe of all contracts
   const handleConfirmReset = async () => {
+    if (isGuest) return;
     setOrders([]);
     localStorage.removeItem(LOCAL_STORAGE_KEY);
     try {
@@ -366,6 +375,12 @@ export default function App() {
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
                 <span>СИНХРОНИЗАЦИЯ: ОНЛАЙН</span>
               </span>
+              {isGuest && (
+                <span className="flex items-center gap-1.5 text-[11px] font-mono px-2.5 py-0.5 rounded bg-amber-950/80 text-amber-300 border border-amber-500/40 font-bold">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                  <span>РЕЖИМ ГОСТЯ (ТОЛЬКО ЧТЕНИЕ)</span>
+                </span>
+              )}
             </div>
             <p className="text-xs text-stone-400 font-sans max-w-2xl">
               Единый реестр контрактов Города. Заказы раскрываются кликом для подробностей. Выполненные и проваленные дела автоматически архивируются внизу.
@@ -374,11 +389,23 @@ export default function App() {
 
           <div className="flex flex-wrap items-center gap-2.5">
             <button
-              onClick={() => setIsCreateModalOpen(true)}
-              disabled={orders.length >= MAX_ORDERS_COUNT}
-              className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 disabled:cursor-not-allowed text-stone-950 font-bold text-xs flex items-center gap-2 shadow-lg shadow-amber-950/40 transition-all font-mono cursor-pointer"
+              onClick={() => {
+                if (isGuest) return;
+                setIsCreateModalOpen(true);
+              }}
+              disabled={isGuest || orders.length >= MAX_ORDERS_COUNT}
+              title={
+                isGuest
+                  ? 'Создание заказов недоступно в гостевом режиме (только чтение)'
+                  : `Создать заказ (${orders.length}/${MAX_ORDERS_COUNT})`
+              }
+              className={`px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-2 shadow-lg font-mono transition-all ${
+                isGuest
+                  ? 'bg-stone-800/80 text-stone-500 border border-stone-700/50 cursor-not-allowed opacity-60'
+                  : 'bg-amber-500 hover:bg-amber-400 text-stone-950 shadow-amber-950/40 cursor-pointer'
+              }`}
             >
-              <PlusCircle className="w-4 h-4 text-stone-950" />
+              <PlusCircle className={`w-4 h-4 ${isGuest ? 'text-stone-500' : 'text-stone-950'}`} />
               <span>Создать заказ ({orders.length}/{MAX_ORDERS_COUNT})</span>
             </button>
 
@@ -410,7 +437,7 @@ export default function App() {
               <span>Печать / PDF</span>
             </button>
 
-            {orders.length > 0 && (
+            {!isGuest && orders.length > 0 && (
               <button
                 onClick={() => setIsResetModalOpen(true)}
                 className="px-3 py-2 rounded-xl bg-stone-900 hover:bg-red-950/60 text-stone-400 hover:text-red-300 text-xs font-mono flex items-center gap-1.5 border border-stone-800 hover:border-red-800/60 transition-colors cursor-pointer"
@@ -566,9 +593,17 @@ export default function App() {
                   order={order}
                   theme={theme}
                   forceExpanded={allExpanded}
-                  onSignClick={(o) => setSigningOrder(o)}
-                  onEditClick={(o) => setEditingOrder(o)}
+                  isReadOnly={isGuest}
+                  onSignClick={(o) => {
+                    if (isGuest) return;
+                    setSigningOrder(o);
+                  }}
+                  onEditClick={(o) => {
+                    if (isGuest) return;
+                    setEditingOrder(o);
+                  }}
                   onDeleteClick={(id) => {
+                    if (isGuest) return;
                     const target = orders.find((o) => o.id === id);
                     if (target) setDeletingOrder(target);
                   }}
@@ -652,9 +687,17 @@ export default function App() {
                       order={order}
                       theme={theme}
                       forceExpanded={allExpanded}
-                      onSignClick={(o) => setSigningOrder(o)}
-                      onEditClick={(o) => setEditingOrder(o)}
+                      isReadOnly={isGuest}
+                      onSignClick={(o) => {
+                        if (isGuest) return;
+                        setSigningOrder(o);
+                      }}
+                      onEditClick={(o) => {
+                        if (isGuest) return;
+                        setEditingOrder(o);
+                      }}
                       onDeleteClick={(id) => {
+                        if (isGuest) return;
                         const target = orders.find((o) => o.id === id);
                         if (target) setDeletingOrder(target);
                       }}

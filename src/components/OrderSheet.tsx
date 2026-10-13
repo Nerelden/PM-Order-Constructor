@@ -40,12 +40,14 @@ interface OrderSheetProps {
   onStatusChange: (orderId: string, newStatus: 'available' | 'in_progress' | 'completed' | 'failed') => void;
   onUnarchive?: (orderId: string) => void;
   onClearStamp?: (orderId: string) => void;
+  isReadOnly?: boolean;
 }
 
 export const OrderSheet: React.FC<OrderSheetProps> = ({
   order,
   theme,
   forceExpanded,
+  isReadOnly = false,
   onSignClick,
   onEditClick,
   onDeleteClick,
@@ -230,13 +232,17 @@ ${order.signedDate ? `Дата принятия заказа: ${order.signedDate
         <div className="flex items-center gap-2">
           <select
             value={order.status}
+            disabled={isReadOnly}
+            title={isReadOnly ? 'Гостевой режим: изменение статуса недоступно' : 'Изменить статус контракта'}
             onChange={(e) =>
               onStatusChange(
                 order.id,
                 e.target.value as 'available' | 'in_progress' | 'completed' | 'failed'
               )
             }
-            className={`text-xs font-mono font-bold px-2 py-1 rounded-md border cursor-pointer focus:outline-none transition-colors ${
+            className={`text-xs font-mono font-bold px-2 py-1 rounded-md border focus:outline-none transition-colors ${
+              isReadOnly ? 'cursor-not-allowed opacity-80' : 'cursor-pointer'
+            } ${
               order.status === 'available'
                 ? 'bg-stone-900 text-emerald-400 border-emerald-500/40'
                 : order.status === 'in_progress'
@@ -260,7 +266,7 @@ ${order.signedDate ? `Дата принятия заказа: ${order.signedDate
             {isExpanded ? <ChevronUp className="w-4 h-4 text-amber-400" /> : <ChevronDown className="w-4 h-4 text-amber-400" />}
           </button>
 
-          {onDeleteClick && (
+          {!isReadOnly && onDeleteClick && (
             <button
               onClick={() => onDeleteClick(order.id)}
               className="p-1.5 rounded-md hover:bg-red-950/60 text-stone-500 hover:text-red-400 transition-colors cursor-pointer"
@@ -503,7 +509,7 @@ ${order.signedDate ? `Дата принятия заказа: ${order.signedDate
                       )}
                     </div>
                   </div>
-                  {onClearStamp && (
+                  {!isReadOnly && onClearStamp && (
                     <button
                       type="button"
                       onClick={() => onClearStamp(order.id)}
@@ -535,69 +541,80 @@ ${order.signedDate ? `Дата принятия заказа: ${order.signedDate
       {/* Footer Action Buttons */}
       <div className="no-print relative z-10 border-t border-stone-800/90 bg-stone-950/80 px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-2.5">
         <div className="flex items-center gap-2">
-          {order.status === 'available' ? (
-            <button
-              onClick={() => onSignClick(order)}
-              className="px-3.5 py-1.5 rounded-lg text-xs font-bold font-mono uppercase tracking-wider flex items-center gap-1.5 bg-amber-500 hover:bg-amber-400 text-stone-950 shadow-md shadow-amber-950/40 transition-all"
-            >
-              <PenTool className="w-3.5 h-3.5" />
-              <span>Принять заказ</span>
-            </button>
-          ) : order.status === 'in_progress' ? (
-            <div className="flex items-center gap-1.5">
-              <button
-                onClick={() => onStatusChange(order.id, 'completed')}
-                className="px-3 py-1.5 rounded-lg text-xs font-bold font-mono uppercase tracking-wider flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white transition-all shadow-md"
-              >
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                <span>Завершить</span>
-              </button>
-              <button
-                onClick={() => onStatusChange(order.id, 'failed')}
-                className="px-2.5 py-1.5 rounded-lg text-xs font-bold font-mono uppercase tracking-wider flex items-center gap-1 bg-red-950 hover:bg-red-900 text-red-300 border border-red-700/60 transition-all"
-                title="Отметить как проваленный"
-              >
-                <XCircle className="w-3.5 h-3.5 text-red-400" />
-                <span>Провал</span>
-              </button>
+          {isReadOnly ? (
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-mono text-stone-400 bg-stone-900/90 px-2.5 py-1 rounded-md border border-stone-800 flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                <span>Режим чтения (Гость)</span>
+              </span>
             </div>
           ) : (
-            <div className="flex flex-wrap items-center gap-2">
-              <div
-                className={`flex items-center gap-1.5 text-xs font-bold font-mono ${
-                  order.status === 'completed' ? 'text-blue-400' : 'text-red-400'
-                }`}
-              >
-                {order.status === 'completed' ? (
-                  <Check className="w-4 h-4" />
-                ) : (
-                  <XCircle className="w-4 h-4 text-red-500" />
-                )}
-                <span>{order.status === 'completed' ? 'ВЫПОЛНЕН' : 'ПРОВАЛЕН'}</span>
-              </div>
-
-              {onUnarchive && (
+            <>
+              {order.status === 'available' ? (
                 <button
-                  type="button"
-                  onClick={() => onUnarchive(order.id)}
-                  className="px-3 py-1.5 rounded-lg text-xs font-bold font-mono uppercase tracking-wider flex items-center gap-1.5 bg-amber-500/15 hover:bg-amber-500 text-amber-300 hover:text-stone-950 border border-amber-500/40 hover:border-amber-400 transition-all cursor-pointer shadow-sm"
-                  title="Вытащить контракт из архива в реестр: вернуть в статус «Доступен» без принятого статуса и без штампа"
+                  onClick={() => onSignClick(order)}
+                  className="px-3.5 py-1.5 rounded-lg text-xs font-bold font-mono uppercase tracking-wider flex items-center gap-1.5 bg-amber-500 hover:bg-amber-400 text-stone-950 shadow-md shadow-amber-950/40 transition-all cursor-pointer"
                 >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                  <span>Вытащить из архива</span>
+                  <PenTool className="w-3.5 h-3.5" />
+                  <span>Принять заказ</span>
                 </button>
-              )}
-            </div>
-          )}
+              ) : order.status === 'in_progress' ? (
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => onStatusChange(order.id, 'completed')}
+                    className="px-3 py-1.5 rounded-lg text-xs font-bold font-mono uppercase tracking-wider flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white transition-all shadow-md cursor-pointer"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>Завершить</span>
+                  </button>
+                  <button
+                    onClick={() => onStatusChange(order.id, 'failed')}
+                    className="px-2.5 py-1.5 rounded-lg text-xs font-bold font-mono uppercase tracking-wider flex items-center gap-1 bg-red-950 hover:bg-red-900 text-red-300 border border-red-700/60 transition-all cursor-pointer"
+                    title="Отметить как проваленный"
+                  >
+                    <XCircle className="w-3.5 h-3.5 text-red-400" />
+                    <span>Провал</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="flex flex-wrap items-center gap-2">
+                  <div
+                    className={`flex items-center gap-1.5 text-xs font-bold font-mono ${
+                      order.status === 'completed' ? 'text-blue-400' : 'text-red-400'
+                    }`}
+                  >
+                    {order.status === 'completed' ? (
+                      <Check className="w-4 h-4" />
+                    ) : (
+                      <XCircle className="w-4 h-4 text-red-500" />
+                    )}
+                    <span>{order.status === 'completed' ? 'ВЫПОЛНЕН' : 'ПРОВАЛЕН'}</span>
+                  </div>
 
-          <button
-            onClick={() => onEditClick(order)}
-            className="p-1.5 rounded-lg hover:bg-stone-800 text-stone-400 hover:text-stone-200 border border-stone-800 text-xs flex items-center gap-1 transition-colors"
-            title="Редактировать параметры контракта"
-          >
-            <Edit3 className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Изменить</span>
-          </button>
+                  {onUnarchive && (
+                    <button
+                      type="button"
+                      onClick={() => onUnarchive(order.id)}
+                      className="px-3 py-1.5 rounded-lg text-xs font-bold font-mono uppercase tracking-wider flex items-center gap-1.5 bg-amber-500/15 hover:bg-amber-500 text-amber-300 hover:text-stone-950 border border-amber-500/40 hover:border-amber-400 transition-all cursor-pointer shadow-sm"
+                      title="Вытащить контракт из архива в реестр: вернуть в статус «Доступен» без принятого статуса и без штампа"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>Вытащить из архива</span>
+                    </button>
+                  )}
+                </div>
+              )}
+
+              <button
+                onClick={() => onEditClick(order)}
+                className="p-1.5 rounded-lg hover:bg-stone-800 text-stone-400 hover:text-stone-200 border border-stone-800 text-xs flex items-center gap-1 transition-colors cursor-pointer"
+                title="Редактировать параметры контракта"
+              >
+                <Edit3 className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Изменить</span>
+              </button>
+            </>
+          )}
         </div>
 
         <div className="flex items-center gap-2">

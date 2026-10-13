@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { VisualTheme, ClientCategory, MAX_ORDERS_COUNT } from '../types';
 import { LOGO_HAN_PNG, LOGO_HAN_DATA_URL } from '../assets/logo';
+import { isGuestUser } from '../services/firebaseAuth';
 
 interface HeaderProps {
   user: User | null;
@@ -137,17 +138,21 @@ export const Header: React.FC<HeaderProps> = ({
           {user && (
             <div className="flex items-center gap-2 pl-2 border-l border-stone-800">
               <div
-                className="flex items-center gap-2 bg-stone-900/90 px-2.5 py-1.5 rounded-lg border border-stone-800 text-xs"
-                title={`Авторизован: ${user.email}`}
+                className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg border text-xs ${
+                  isGuestUser(user)
+                    ? 'bg-amber-950/40 border-amber-500/40 text-amber-200'
+                    : 'bg-stone-900/90 border-stone-800 text-stone-300'
+                }`}
+                title={isGuestUser(user) ? 'Гостевой доступ: Только чтение' : `Авторизован: ${user.email}`}
               >
                 <UserIcon className="w-3.5 h-3.5 text-amber-400" />
-                <span className="font-mono text-[11px] text-stone-300 max-w-[140px] truncate">
-                  {user.email}
+                <span className="font-mono text-[11px] max-w-[140px] truncate">
+                  {isGuestUser(user) ? 'Гость (Только чтение)' : user.email}
                 </span>
                 <button
                   onClick={onLogout}
-                  className="text-stone-400 hover:text-red-400 ml-1 p-0.5 rounded transition-colors"
-                  title="Выйти из учетной записи"
+                  className="text-stone-400 hover:text-red-400 ml-1 p-0.5 rounded transition-colors cursor-pointer"
+                  title="Выйти из гостевого режима / учетной записи"
                 >
                   <LogOut className="w-3.5 h-3.5" />
                 </button>
