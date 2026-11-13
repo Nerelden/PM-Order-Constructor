@@ -1,13 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { User } from 'firebase/auth';
 import {
-  Printer,
   Sparkles,
-  Clock,
+  Calendar,
+  Edit3,
   LogOut,
   User as UserIcon
 } from 'lucide-react';
-import { VisualTheme } from '../types';
+import { VisualTheme, CityDate, formatCityDate } from '../types';
 import { LOGO_HAN_PNG, LOGO_HAN_DATA_URL } from '../assets/logo';
 import { isGuestUser } from '../services/firebaseAuth';
 
@@ -16,7 +16,8 @@ interface HeaderProps {
   onLogout: () => void;
   theme: VisualTheme;
   setTheme: (theme: VisualTheme) => void;
-  onOpenPdfModal: () => void;
+  cityDate: CityDate;
+  onOpenCityDateModal: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -24,33 +25,18 @@ export const Header: React.FC<HeaderProps> = ({
   onLogout,
   theme,
   setTheme,
-  onOpenPdfModal,
+  cityDate,
+  onOpenCityDateModal,
 }) => {
-  const [currentTime, setCurrentTime] = useState<string>('');
-
-  useEffect(() => {
-    const updateTime = () => {
-      const now = new Date();
-      setCurrentTime(
-        now.toLocaleTimeString('ru-RU', {
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit',
-        })
-      );
-    };
-    updateTime();
-    const interval = setInterval(updateTime, 1000);
-    return () => clearInterval(interval);
-  }, []);
+  const isGuest = isGuestUser(user);
+  const formattedDate = formatCityDate(cityDate);
 
   return (
     <header className="no-print border-b border-amber-900/30 bg-[#0e1117]/95 relative z-40 transition-colors">
       {/* Top Security Notice Bar */}
-      <div className="bg-gradient-to-r from-amber-950/60 via-stone-900/80 to-amber-950/60 border-b border-amber-500/20 px-4 sm:px-6 py-2 text-xs sm:text-[13px] flex flex-wrap items-center justify-between text-amber-200/85 font-mono-code">
+      <div className="bg-gradient-to-r from-amber-950/60 via-stone-900/80 to-amber-950/60 border-b border-amber-500/20 px-4 sm:px-6 py-2 text-xs sm:text-[13px] flex flex-wrap items-center justify-between gap-2 text-amber-200/85 font-mono-code">
         <div className="flex items-center gap-3">
-          <span className="flex items-center gap-2 text-amber-400 font-bold tracking-wider">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span className="text-amber-400 font-bold tracking-wider">
             РЕЕСТР АССОЦИАЦИИ ХАНА
           </span>
           <span className="hidden sm:inline text-stone-500">|</span>
@@ -58,33 +44,53 @@ export const Header: React.FC<HeaderProps> = ({
             ЕДИНЫЙ АРХИВ ОФИЦИАЛЬНЫХ ЗАКАЗОВ ГОРОДА
           </span>
         </div>
-        <div className="flex items-center gap-4 text-xs sm:text-[13px]">
-          <div className="flex items-center gap-1.5 text-stone-200">
-            <Clock className="w-4 h-4 text-amber-400" />
-            <span>ВРЕМЯ ГОРОДА: <strong className="text-amber-300">{currentTime}</strong></span>
-          </div>
+        <div className="flex items-center gap-2 text-xs sm:text-[13px]">
+          {!isGuest ? (
+            <button
+              type="button"
+              onClick={onOpenCityDateModal}
+              className="flex items-center gap-1.5 text-stone-200 hover:text-amber-200 bg-stone-900/60 hover:bg-stone-800/80 border border-amber-500/25 hover:border-amber-400/50 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+              title="Настроить текущую дату Города"
+            >
+              <Calendar className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
+              <span>
+                ВРЕМЯ ГОРОДА: <strong className="text-amber-300">{formattedDate}</strong>
+              </span>
+              <Edit3 className="w-3 h-3 text-amber-400/80 ml-0.5 flex-shrink-0" />
+            </button>
+          ) : (
+            <div
+              className="flex items-center gap-1.5 text-stone-200 px-1.5 py-0.5"
+              title="Только персонал может настраивать дату Города"
+            >
+              <Calendar className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
+              <span>
+                ВРЕМЯ ГОРОДА: <strong className="text-amber-300">{formattedDate}</strong>
+              </span>
+            </div>
+          )}
         </div>
       </div>
 
       {/* Main Header Content */}
-      <div className="max-w-[1920px] mx-auto px-4 sm:px-8 py-3.5 flex flex-col md:flex-row md:items-center md:justify-between gap-3.5">
+      <div className="max-w-[1440px] mx-auto px-4 sm:px-6 py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         {/* Brand & Emblem */}
-        <div className="flex items-center gap-3.5">
+        <div className="flex items-center gap-3">
           <img
             src={LOGO_HAN_PNG}
             alt="Герб Ассоциации Хана"
-            className="w-14 h-14 sm:w-16 sm:h-16 object-contain drop-shadow-md flex-shrink-0 hover:scale-105 transition-transform select-none"
+            className="w-11 h-11 sm:w-12 sm:h-12 object-contain drop-shadow-md flex-shrink-0 hover:scale-105 transition-transform select-none"
             onError={(e) => {
               (e.currentTarget as HTMLImageElement).src = LOGO_HAN_DATA_URL;
             }}
           />
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="font-cinzel text-lg sm:text-xl font-bold tracking-wide text-stone-100 flex items-center gap-2">
+              <h1 className="font-cinzel text-base sm:text-lg font-bold tracking-wide text-stone-100 flex items-center gap-2">
                 ЛИСТЫ ОФИЦИАЛЬНЫХ ЗАКАЗОВ
               </h1>
             </div>
-            <p className="text-xs sm:text-[13px] text-stone-400 max-w-2xl font-mono-code mt-0.5">
+            <p className="text-xs text-stone-400 max-w-2xl font-mono-code mt-0.5">
               Ассоциации • Синдикаты • Офисы Фиксеров • Частные Заказчики
             </p>
           </div>
@@ -104,30 +110,20 @@ export const Header: React.FC<HeaderProps> = ({
             </span>
           </button>
 
-          {/* PDF & Print Button */}
-          <button
-            onClick={onOpenPdfModal}
-            className="px-3.5 py-2 rounded-xl bg-stone-900 hover:bg-stone-800 text-stone-200 border border-stone-700 text-xs sm:text-[13px] flex items-center gap-2 transition-colors font-mono cursor-pointer"
-            title="Экспорт в PDF (A4) / Печать официальных бланков"
-          >
-            <Printer className="w-4 h-4 text-amber-400" />
-            <span className="hidden sm:inline">Печать / PDF</span>
-          </button>
-
           {/* User Email Profile & Logout */}
           {user && (
             <div className="flex items-center gap-2 pl-2.5 border-l border-stone-800">
               <div
                 className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-xs sm:text-[13px] ${
-                  isGuestUser(user)
+                  isGuest
                     ? 'bg-amber-950/40 border-amber-500/40 text-amber-200'
                     : 'bg-stone-900/90 border-stone-800 text-stone-200'
                 }`}
-                title={isGuestUser(user) ? 'Гостевой доступ: Только чтение' : `Авторизован: ${user.email}`}
+                title={isGuest ? 'Гостевой доступ: Только чтение' : `Авторизован: ${user.email}`}
               >
                 <UserIcon className="w-4 h-4 text-amber-400" />
                 <span className="font-mono text-xs max-w-[170px] truncate">
-                  {isGuestUser(user) ? 'Гость (Только чтение)' : user.email}
+                  {isGuest ? 'Гость (Только чтение)' : user.email}
                 </span>
                 <button
                   onClick={onLogout}

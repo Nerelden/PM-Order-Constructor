@@ -11,6 +11,19 @@ service cloud.firestore {
       return request.auth != null && request.auth.token.firebase.sign_in_provider != 'anonymous';
     }
 
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidCityDate(data) {
+      return data.keys().hasAll(['day', 'month', 'year'])
+        && data.keys().hasOnly(['day', 'month', 'year', 'updatedAt'])
+        && data.day is int && data.day >= 1 && data.day <= 31
+        && data.month is int && data.month >= 1 && data.month <= 12
+        && data.year is int && data.year >= 1 && data.year <= 99999
+        && (!('updatedAt' in data) || (data.updatedAt is int && data.updatedAt >= 0));
+    }
+
     // Orders registry:
     // - Read allowed to everyone (including guests in read-only mode)
     // - Create, update, and delete strictly forbidden for guests; allowed only for staff
@@ -28,6 +41,21 @@ service cloud.firestore {
                     && request.resource.data.title is string
                     && request.resource.data.title.size() <= 300;
       allow delete: if isStaff();
+    }
+
+    // City settings (City Date):
+    // - Single-document get allowed for everyone (including guests in read-only mode)
+    // - Create and update allowed only for staff with strict schema validation
+    match /settings/{settingId} {
+      allow get: if isValidId(settingId);
+      allow list: if false;
+      allow create: if isStaff()
+                    && isValidId(settingId)
+                    && isValidCityDate(request.resource.data);
+      allow update: if isStaff()
+                    && isValidId(settingId)
+                    && isValidCityDate(request.resource.data);
+      allow delete: if false;
     }
   }
 }

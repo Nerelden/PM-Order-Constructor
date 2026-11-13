@@ -1,33 +1,22 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import {
   ShieldAlert,
   Compass,
   AlertTriangle,
-  Coins,
   MapPin,
-  Target,
-  FileText,
-  Clock,
-  Printer,
-  Copy,
   Edit3,
-  Check,
   CheckCircle2,
   PenTool,
   Trash2,
   Users2,
-  Building2,
   Briefcase,
   UserCheck,
-  Calendar,
-  FileDown,
-  ChevronDown,
-  ChevronUp,
   XCircle,
   RotateCcw,
   ListChecks,
   Users,
-  User
+  User,
+  Maximize2
 } from 'lucide-react';
 import { OrderContract, VisualTheme, getOrderRgb } from '../types';
 import { LOGO_HAN_PNG, LOGO_HAN_DATA_URL } from '../assets/logo';
@@ -35,48 +24,30 @@ import { LOGO_HAN_PNG, LOGO_HAN_DATA_URL } from '../assets/logo';
 interface OrderSheetProps {
   order: OrderContract;
   theme: VisualTheme;
-  forceExpanded?: boolean;
+  onOpenDetail: (order: OrderContract) => void;
   onSignClick: (order: OrderContract) => void;
   onEditClick: (order: OrderContract) => void;
   onDeleteClick?: (orderId: string) => void;
-  onPrintClick?: (order: OrderContract) => void;
   onStatusChange: (orderId: string, newStatus: 'available' | 'in_progress' | 'completed' | 'failed') => void;
   onUnarchive?: (orderId: string) => void;
-  onClearStamp?: (orderId: string) => void;
   isReadOnly?: boolean;
 }
 
 export const OrderSheet: React.FC<OrderSheetProps> = ({
   order,
   theme,
-  forceExpanded,
   isReadOnly = false,
+  onOpenDetail,
   onSignClick,
   onEditClick,
   onDeleteClick,
-  onPrintClick,
   onStatusChange,
   onUnarchive,
-  onClearStamp,
 }) => {
-  const [copied, setCopied] = useState(false);
-  const [isExpanded, setIsExpanded] = useState<boolean>(forceExpanded ?? false);
-  const copyTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
-    setIsExpanded(forceExpanded ?? false);
-  }, [forceExpanded]);
-
-  useEffect(() => {
-    return () => {
-      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
-    };
-  }, []);
-
-  // Compute dynamic RGB color
   const rgb = getOrderRgb(order);
   const rgbString = `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`;
-  const rgbBgSoft = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.15)`;
+  const rgbBgSoft = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.14)`;
   const rgbBorderSoft = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.4)`;
   const rgbBorderCard = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.55)`;
 
@@ -99,7 +70,7 @@ export const OrderSheet: React.FC<OrderSheetProps> = ({
           key={order.watermarkUrl}
           src={order.watermarkUrl}
           alt=""
-          className="w-7 h-7 object-contain rounded"
+          className="w-5 h-5 object-contain rounded"
           onError={(e) => {
             (e.currentTarget as HTMLElement).style.display = 'none';
           }}
@@ -109,11 +80,11 @@ export const OrderSheet: React.FC<OrderSheetProps> = ({
 
     switch (order.clientCategory) {
       case 'syndicate':
-        return <Users2 className="w-7 h-7" style={{ color: rgbString }} />;
+        return <Users2 className="w-5 h-5" style={{ color: rgbString }} />;
       case 'office':
-        return <Briefcase className="w-7 h-7" style={{ color: rgbString }} />;
+        return <Briefcase className="w-5 h-5" style={{ color: rgbString }} />;
       case 'individual':
-        return <UserCheck className="w-7 h-7" style={{ color: rgbString }} />;
+        return <UserCheck className="w-5 h-5" style={{ color: rgbString }} />;
       case 'association':
       default:
         if (
@@ -125,7 +96,7 @@ export const OrderSheet: React.FC<OrderSheetProps> = ({
             <img
               src={LOGO_HAN_PNG}
               alt="Хана"
-              className="w-7 h-7 object-contain drop-shadow"
+              className="w-5 h-5 object-contain drop-shadow"
               onError={(e) => {
                 (e.currentTarget as HTMLImageElement).src = LOGO_HAN_DATA_URL;
               }}
@@ -133,9 +104,9 @@ export const OrderSheet: React.FC<OrderSheetProps> = ({
           );
         }
         return order.associationCode === 'devyat' ? (
-          <Compass className="w-7 h-7" style={{ color: rgbString }} />
+          <Compass className="w-5 h-5" style={{ color: rgbString }} />
         ) : (
-          <ShieldAlert className="w-7 h-7" style={{ color: rgbString }} />
+          <ShieldAlert className="w-5 h-5" style={{ color: rgbString }} />
         );
     }
   };
@@ -154,98 +125,32 @@ export const OrderSheet: React.FC<OrderSheetProps> = ({
     }
   };
 
-  const copyFullText = async () => {
-    const recipientText = recipientLabel ? ` (${recipientLabel})` : '';
-    const sections: string[] = [
-      `ОФИЦИАЛЬНЫЙ ЛИСТ ЗАКАЗА [${order.code}]`,
-      order.title,
-      `Категория: ${getCategoryLabel()}`,
-      `Заказчик: ${order.client}`,
-    ];
-
-    if (order.objective?.trim()) {
-      sections.push(`\nЦель:\n${order.objective.trim()}`);
-    }
-    if (order.background?.trim()) {
-      sections.push(`\nБэкграунд:\n${order.background.trim()}`);
-    }
-    if (conditionsList.length > 0) {
-      sections.push(`\nУсловия:\n${conditionsList.map((c) => `• ${c}`).join('\n')}`);
-    }
-    if (threatsList.length > 0) {
-      sections.push(`\nУгрозы:\n${threatsList.map((t) => `• ${t}`).join('\n')}`);
-    }
-    if (order.details?.trim()) {
-      sections.push(`\nПодробности:\n${order.details.trim()}`);
-    }
-    if (hasDirectives) {
-      sections.push(`\nОсобые предписания и директивы:\n${order.tacticalNotes!.map((n) => `• ${n}`).join('\n')}`);
-    }
-
-    sections.push(
-      `\nВознаграждение: ${order.rewardAhn.toLocaleString('ru-RU')} Ан${recipientText}${hasBonus ? ` (Бонус: ${order.rewardBonus})` : ''}`,
-      `Статус: ${
-        order.status === 'available'
-          ? 'ДОСТУПЕН ДЛЯ ПРИНЯТИЯ'
-          : order.status === 'in_progress'
-          ? 'В РАБОТЕ'
-          : order.status === 'completed'
-          ? 'ВЫПОЛНЕН'
-          : 'ПРОВАЛЕНО'
-      }`
-    );
-
-    if (order.assignedFixer) {
-      sections.push(`Исполнитель: ${order.assignedFixer} [${order.assignedOffice || 'Свободный фиксер'}]`);
-    }
-    if (order.signedDate) {
-      sections.push(`Дата принятия заказа: ${order.signedDate}`);
-    }
-
-    const textToCopy = sections.join('\n');
-
-    try {
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(textToCopy);
-      } else {
-        throw new Error('Clipboard API unavailable');
-      }
-    } catch {
-      const textarea = document.createElement('textarea');
-      textarea.value = textToCopy;
-      textarea.style.position = 'fixed';
-      textarea.style.opacity = '0';
-      document.body.appendChild(textarea);
-      textarea.select();
-      try {
-        document.execCommand('copy');
-      } finally {
-        document.body.removeChild(textarea);
-      }
-    }
-
-    setCopied(true);
-    if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
-    copyTimerRef.current = setTimeout(() => setCopied(false), 2000);
-  };
-
   return (
     <article
+      onClick={() => onOpenDetail(order)}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onOpenDetail(order);
+        }
+      }}
       style={{ borderColor: isFailed ? '#dc2626' : rgbBorderCard }}
-      className={`order-sheet-card card-appear relative rounded-2xl transition-all duration-300 hover:-translate-y-0.5 overflow-hidden flex flex-col justify-between self-start w-full ${
+      className={`order-sheet-card card-appear relative rounded-xl transition-all duration-300 hover:-translate-y-0.5 hover:shadow-amber-950/30 overflow-hidden flex flex-col justify-between w-full cursor-pointer group ${
         theme === 'parchment'
-          ? 'parchment-bg text-stone-200 shadow-2xl border-2'
-          : 'terminal-bg text-stone-100 shadow-xl border-2'
+          ? 'parchment-bg text-stone-200 shadow-xl border'
+          : 'terminal-bg text-stone-100 shadow-xl border'
       } ${isFailed ? 'ring-1 ring-red-600/40' : ''}`}
     >
-      {/* Dynamic Watermark: URL Image (full color) or Roman Numeral */}
+      {/* Dynamic Watermark */}
       {order.watermarkUrl ? (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden select-none z-0">
           <img
             key={order.watermarkUrl}
             src={order.watermarkUrl}
             alt=""
-            className="max-w-[240px] max-h-[240px] object-contain opacity-[0.12] select-none pointer-events-none"
+            className="max-w-[180px] max-h-[180px] object-contain opacity-[0.11] select-none pointer-events-none"
             onError={(e) => {
               (e.currentTarget as HTMLElement).style.display = 'none';
             }}
@@ -254,41 +159,36 @@ export const OrderSheet: React.FC<OrderSheetProps> = ({
       ) : order.romanNumeral ? (
         <div
           style={{ color: rgbString }}
-          className="absolute -top-12 -right-8 text-[160px] font-cinzel font-black select-none pointer-events-none opacity-[0.04]"
+          className="absolute -top-8 -right-6 text-[125px] font-cinzel font-black select-none pointer-events-none opacity-[0.04]"
         >
           {order.romanNumeral}
         </div>
       ) : null}
 
-      {/* OVERLAY WHEN STATUS IS FAILED: BLUR AND CENTRAL RED STAMP */}
+      {/* OVERLAY WHEN STATUS IS FAILED */}
       {isFailed && (
-        <div className="absolute inset-0 z-30 flex items-center justify-center pointer-events-none p-4 bg-black/40">
-          <div className="border-4 border-dashed border-red-600 bg-red-950/90 text-red-500 px-6 sm:px-10 py-3.5 sm:py-4 rounded-lg font-cinzel font-black text-2xl sm:text-3xl tracking-[0.25em] uppercase rotate-[-8deg] shadow-2xl shadow-red-950 backdrop-blur-md">
+        <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none p-3 bg-black/35">
+          <div className="border-2 border-dashed border-red-600 bg-red-950/90 text-red-500 px-5 py-2 rounded-lg font-cinzel font-black text-lg sm:text-xl tracking-[0.2em] uppercase rotate-[-7deg] shadow-2xl shadow-red-950 backdrop-blur-sm">
             [ ПРОВАЛЕНО ]
           </div>
         </div>
       )}
 
       {/* Top Header Tab */}
-      <div className="relative z-10 border-b border-stone-800/80 bg-stone-950/70 px-4 sm:px-5 py-3 flex flex-wrap items-center justify-between gap-2">
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="relative z-10 border-b border-stone-800/80 bg-stone-950/75 px-3.5 py-2.5 flex flex-wrap items-center justify-between gap-2 cursor-default"
+      >
         <div className="flex items-center gap-2 min-w-0">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-mono-code text-xs sm:text-[13px] font-bold tracking-wider text-stone-100 truncate">
-                {order.code}
-              </span>
-              <span className="text-xs uppercase font-mono px-2 py-0.5 rounded bg-stone-800 text-stone-300">
-                {getCategoryLabel()}
-              </span>
-            </div>
-            <div className="text-[11px] sm:text-xs text-stone-400 font-mono-code mt-0.5">
-              АРХИВНЫЙ РЕГИСТР НАДЗОРА
-            </div>
-          </div>
+          <span className="font-mono-code text-xs font-bold tracking-wider text-stone-100 truncate">
+            {order.code}
+          </span>
+          <span className="text-[11px] uppercase font-mono px-1.5 py-0.5 rounded bg-stone-800 text-stone-300 truncate">
+            {getCategoryLabel()}
+          </span>
         </div>
 
-        {/* Status Pill, Expand Toggle & Action Icons */}
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1">
           <select
             value={order.status}
             disabled={isReadOnly}
@@ -299,7 +199,7 @@ export const OrderSheet: React.FC<OrderSheetProps> = ({
                 e.target.value as 'available' | 'in_progress' | 'completed' | 'failed'
               )
             }
-            className={`text-xs font-mono font-bold px-2.5 py-1.5 rounded-lg border focus:outline-none transition-colors ${
+            className={`text-[11px] font-mono font-bold px-2 py-1 rounded-md border focus:outline-none transition-colors ${
               isReadOnly ? 'cursor-not-allowed opacity-80' : 'cursor-pointer'
             } ${
               order.status === 'available'
@@ -317,469 +217,219 @@ export const OrderSheet: React.FC<OrderSheetProps> = ({
             <option value="failed">✕ ПРОВАЛЕНО</option>
           </select>
 
-          <button
-            onClick={() => setIsExpanded(!isExpanded)}
-            className="p-2 rounded-lg hover:bg-stone-800 text-stone-300 hover:text-stone-100 transition-colors flex items-center gap-1 text-xs font-mono cursor-pointer"
-            title={isExpanded ? 'Свернуть подробности' : 'Развернуть подробности'}
-          >
-            {isExpanded ? <ChevronUp className="w-4 h-4 text-amber-400" /> : <ChevronDown className="w-4 h-4 text-amber-400" />}
-          </button>
-
           {!isReadOnly && onDeleteClick && (
             <button
+              type="button"
               onClick={() => onDeleteClick(order.id)}
-              className="p-2 rounded-lg hover:bg-red-950/60 text-stone-400 hover:text-red-400 transition-colors cursor-pointer"
+              className="p-1.5 rounded-md hover:bg-red-950/60 text-stone-400 hover:text-red-400 transition-colors cursor-pointer"
               title="Удалить данный лист заказа"
             >
-              <Trash2 className="w-4 h-4" />
+              <Trash2 className="w-3.5 h-3.5" />
             </button>
           )}
         </div>
       </div>
 
-      {/* Main Sheet Body (Blurred if failed) */}
+      {/* Compact Card Body */}
       <div
-        className={`relative z-10 p-4 sm:p-5 flex-1 transition-all ${
-          isFailed ? 'filter blur-[2px] grayscale-[75%] opacity-60 select-none' : ''
+        className={`relative z-10 p-3.5 sm:p-4 space-y-2.5 flex-1 transition-all ${
+          isFailed ? 'filter blur-[1.5px] grayscale-[70%] opacity-65 select-none' : ''
         }`}
       >
-        {/* Compact Summary View: always visible */}
-        <div className="flex flex-col gap-3.5 border-b border-stone-800/80 pb-4">
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 text-xs font-mono-code text-stone-400 flex-wrap">
-              <span className="uppercase tracking-widest text-[11px] sm:text-xs">
-                ЛИСТ ЗАКАЗА
-              </span>
-              <span>•</span>
-              <span className="text-stone-200 flex items-center gap-1 truncate">
-                <MapPin className="w-3.5 h-3.5 text-stone-400 flex-shrink-0" />
-                <span className="truncate">{order.location}</span>
-              </span>
-            </div>
-            <h2 className="font-serif-header text-lg sm:text-xl font-bold tracking-normal text-stone-100 leading-snug break-words">
-              {order.title}
-            </h2>
-            <div className="flex flex-wrap items-center gap-2 pt-0.5">
-              <span
-                style={{
-                  backgroundColor: rgbBgSoft,
-                  borderColor: rgbBorderSoft,
-                  color: rgbString,
-                }}
-                className="text-xs font-mono px-2.5 py-1 rounded-md border font-semibold"
-              >
-                {order.client}
-              </span>
-              <span className="text-xs font-mono px-2.5 py-1 rounded-md border bg-stone-900 text-stone-200 border-stone-700">
-                {order.gradeRequirement}
-              </span>
-              <span className="text-xs font-mono px-2.5 py-1 rounded-md border bg-stone-900 text-stone-300 border-stone-800">
-                {order.threatRating}
-              </span>
-            </div>
-          </div>
+        {/* Location */}
+        <div className="flex items-center justify-between gap-2 text-[11px] font-mono-code text-stone-400">
+          <span className="text-stone-300 flex items-center gap-1 truncate min-w-0">
+            <MapPin className="w-3 h-3 text-stone-400 flex-shrink-0" />
+            <span className="truncate">{order.location}</span>
+          </span>
+          <span className="text-amber-400/80 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 flex-shrink-0">
+            <Maximize2 className="w-3 h-3" />
+            <span>Открыть</span>
+          </span>
+        </div>
 
-          {/* Reward & Insignia Crest */}
-          <div className="flex items-end justify-between gap-2.5 pt-1">
-            <div className="text-left min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs font-mono text-stone-400 uppercase">
-                  Вознаграждение:
+        {/* Title (Mikodacs) */}
+        <h2 className="font-serif-header text-base sm:text-[17px] font-bold text-stone-100 leading-snug line-clamp-2 break-words">
+          {order.title}
+        </h2>
+
+        {/* Client, Grade & Threat Tags */}
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span
+            style={{
+              backgroundColor: rgbBgSoft,
+              borderColor: rgbBorderSoft,
+              color: rgbString,
+            }}
+            className="text-[11px] font-mono px-2 py-0.5 rounded border font-semibold truncate max-w-[180px]"
+          >
+            {order.client}
+          </span>
+          <span className="text-[11px] font-mono px-2 py-0.5 rounded border bg-stone-900 text-stone-200 border-stone-700 truncate max-w-[160px]">
+            {order.gradeRequirement}
+          </span>
+          <span className="text-[11px] font-mono px-2 py-0.5 rounded border bg-stone-900 text-stone-300 border-stone-800 truncate max-w-[180px]">
+            {order.threatRating}
+          </span>
+        </div>
+
+        {/* Reward & Crest */}
+        <div className="flex items-end justify-between gap-2 pt-0.5">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-[11px] font-mono text-stone-400 uppercase">Награда:</span>
+              {recipientLabel && (
+                <span
+                  className={`inline-flex items-center gap-1 text-[11px] font-mono px-1.5 py-0.5 rounded border ${
+                    order.rewardRecipient === 'operator'
+                      ? 'bg-amber-950/60 text-amber-300 border-amber-500/40'
+                      : 'bg-stone-900/90 text-stone-200 border-stone-700'
+                  }`}
+                >
+                  {order.rewardRecipient === 'operator' ? (
+                    <User className="w-2.5 h-2.5 text-amber-400" />
+                  ) : (
+                    <Users className="w-2.5 h-2.5 text-stone-400" />
+                  )}
+                  <span>{recipientLabel}</span>
                 </span>
-                {recipientLabel && (
-                  <span
-                    className={`inline-flex items-center gap-1.5 text-xs font-mono px-2 py-0.5 rounded-md border ${
-                      order.rewardRecipient === 'operator'
-                        ? 'bg-amber-950/60 text-amber-300 border-amber-500/40'
-                        : 'bg-stone-900/90 text-stone-200 border-stone-700'
-                    }`}
-                  >
-                    {order.rewardRecipient === 'operator' ? (
-                      <User className="w-3 h-3 text-amber-400" />
-                    ) : (
-                      <Users className="w-3 h-3 text-stone-400" />
-                    )}
-                    <span>{recipientLabel}</span>
-                  </span>
-                )}
-              </div>
-              <span className="font-cinzel text-xl sm:text-2xl font-black text-amber-300 tracking-wide block leading-tight mt-1">
-                {order.rewardAhn.toLocaleString('ru-RU')}{' '}
-                <span className="text-sm font-mono font-normal text-amber-400/85">Ан</span>
+              )}
+            </div>
+            <div className="font-cinzel text-lg sm:text-xl font-black text-amber-300 tracking-wide leading-tight mt-0.5">
+              {order.rewardAhn.toLocaleString('ru-RU')}{' '}
+              <span className="text-xs font-mono font-normal text-amber-400/85">Ан</span>
+            </div>
+          </div>
+
+          <div
+            style={{
+              backgroundColor: rgbBgSoft,
+              borderColor: rgbBorderSoft,
+            }}
+            className="px-2 py-1 rounded-lg border flex items-center gap-1.5 shadow-inner flex-shrink-0"
+            title={getCategoryLabel()}
+          >
+            {getCategoryIcon()}
+          </div>
+        </div>
+
+        {/* Concise Objective Preview (max 2 lines so cards never stretch vertically) */}
+        <p className="text-xs text-stone-300 leading-relaxed line-clamp-2 min-h-[2.3rem] pt-1 border-t border-stone-800/70">
+          {order.objective ? (
+            <>
+              <span className="text-amber-400/90 font-semibold">Цель: </span>
+              {order.objective}
+            </>
+          ) : (
+            <span className="text-stone-500 italic">Нажмите, чтобы открыть полный лист заказа</span>
+          )}
+        </p>
+
+        {/* Compact Meta Summary Chips */}
+        {(conditionsList.length > 0 || threatsList.length > 0 || order.assignedFixer) && (
+          <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-mono">
+            {conditionsList.length > 0 && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-stone-900 border border-stone-700/80 text-amber-300">
+                <ListChecks className="w-3 h-3" />
+                <span>Условия: {conditionsList.length}</span>
               </span>
-            </div>
-
-            <div
-              style={{
-                backgroundColor: rgbBgSoft,
-                borderColor: rgbBorderSoft,
-              }}
-              className="px-2.5 py-1.5 rounded-xl border flex items-center gap-2 shadow-inner flex-shrink-0"
-              title={getCategoryLabel()}
-            >
-              {getCategoryIcon()}
-              <span className="font-mono-code text-xs uppercase font-bold tracking-wider text-stone-200">
-                {getCategoryLabel()}
+            )}
+            {threatsList.length > 0 && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-red-950/60 border border-red-800/70 text-red-300">
+                <AlertTriangle className="w-3 h-3 text-red-400" />
+                <span>Угрозы: {threatsList.length}</span>
               </span>
-            </div>
+            )}
+            {order.assignedFixer && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-950/40 border border-amber-500/30 text-amber-200 truncate max-w-[180px]">
+                <PenTool className="w-2.5 h-2.5 text-amber-400 flex-shrink-0" />
+                <span className="truncate">{order.assignedFixer}</span>
+              </span>
+            )}
           </div>
-        </div>
-
-        {/* Collapsed quick glance toggle with smooth bidirectional transition */}
-        <div className={`collapse-grid ${!isExpanded ? 'is-open' : ''}`} aria-hidden={isExpanded}>
-          <div className={`collapse-inner ${isExpanded ? 'pointer-events-none' : ''}`}>
-            <div className="flex items-center justify-between gap-2.5 text-xs sm:text-sm text-stone-300 font-mono-code pt-3.5">
-              <div className="truncate text-stone-200 min-w-0">
-                {order.objective ? (
-                  <>
-                    <span className="text-stone-400 font-bold">Цель: </span>
-                    {order.objective}
-                  </>
-                ) : (
-                  <span className="text-stone-500 italic">Цель операции не указана</span>
-                )}
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsExpanded(true)}
-                className="text-amber-400 hover:text-amber-300 flex items-center gap-1 font-semibold text-xs sm:text-[13px] hover:underline cursor-pointer flex-shrink-0"
-              >
-                <span>Развернуть</span>
-                <ChevronDown className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* EXPANDABLE IN-DEPTH OPERATIONAL DETAILS WITH SMOOTH OPEN & CLOSE */}
-        <div className={`collapse-grid ${isExpanded ? 'is-open' : ''}`} aria-hidden={!isExpanded}>
-          <div className={`collapse-inner ${!isExpanded ? 'pointer-events-none' : ''}`}>
-            <div className="space-y-4 pt-4">
-              {/* SECTION 1: ЗАКАЗЧИК */}
-              <div className="rounded-xl bg-stone-950/50 border border-stone-800/80 p-3.5 space-y-1.5">
-                <div className="text-xs font-mono-code uppercase font-semibold text-stone-400 flex items-center gap-1.5">
-                  <Building2 className="w-4 h-4 text-stone-400" />
-                  <span>Заказчик контракта:</span>
-                </div>
-                <div className="text-sm sm:text-base font-medium text-stone-100">
-                  {order.client}
-                </div>
-                {order.associationRole && (
-                  <div className="text-xs sm:text-[13px] text-stone-400 font-mono-code">
-                    Профиль деятельности: {order.associationRole}
-                  </div>
-                )}
-              </div>
-
-              {/* SECTION 2: ЦЕЛЬ */}
-              {order.objective && (
-                <div className="rounded-xl bg-gradient-to-r from-stone-950 via-stone-900/60 to-stone-950 border border-stone-700/80 p-4 space-y-2 shadow-inner">
-                  <div className="flex items-center justify-between gap-2 flex-wrap">
-                    <span className="text-xs font-mono-code uppercase tracking-wider font-bold text-amber-400 flex items-center gap-1.5">
-                      <Target className="w-4 h-4 text-amber-400" />
-                      Цель операции:
-                    </span>
-                    <span className="text-[11px] font-mono text-stone-400">ОБЯЗАТЕЛЬНО К ИСПОЛНЕНИЮ</span>
-                  </div>
-                  <p className="text-sm leading-relaxed font-semibold text-stone-100 pl-2 border-l-2 border-amber-500/80">
-                    {order.objective}
-                  </p>
-                </div>
-              )}
-
-              {/* SECTION 3: БЭКГРАУНД */}
-              {order.background && (
-                <div className="space-y-2">
-                  <div className="text-xs font-mono-code uppercase font-semibold text-stone-400 flex items-center gap-1.5">
-                    <FileText className="w-4 h-4 text-stone-400" />
-                    <span>Бэкграунд и разведывательные данные:</span>
-                  </div>
-                  <div className="p-3.5 rounded-xl bg-stone-950/40 border border-stone-800/80 text-sm text-stone-200 leading-relaxed font-sans">
-                    {order.background}
-                  </div>
-                </div>
-              )}
-
-              {/* SECTION 4A: УСЛОВИЯ КОНТРАКТА (ONLY IF NON-EMPTY) */}
-              {conditionsList.length > 0 && (
-                <div className="space-y-2.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-mono-code uppercase font-bold text-amber-300 flex items-center gap-1.5">
-                      <ListChecks className="w-4 h-4 text-amber-400" />
-                      Условия контракта:
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-1 gap-2">
-                    {conditionsList.map((cond, idx) => (
-                      <div
-                        key={idx}
-                        className="p-3 rounded-xl bg-stone-900/70 border border-stone-700/80 flex items-start gap-2.5 text-sm text-stone-100"
-                      >
-                        <span className="w-6 h-6 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 flex items-center justify-center text-xs font-bold font-mono flex-shrink-0 mt-0.5">
-                          {String(idx + 1).padStart(2, '0')}
-                        </span>
-                        <span className="leading-relaxed">{cond}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* SECTION 4B: УГРОЗЫ (RED, ONLY IF NON-EMPTY) */}
-              {threatsList.length > 0 && (
-                <div className="space-y-2.5">
-                  <div className="flex items-center justify-between gap-2 flex-wrap">
-                    <span className="text-xs font-mono-code uppercase font-bold text-red-400 flex items-center gap-1.5">
-                      <AlertTriangle className="w-4 h-4 text-red-400" />
-                      Угрозы:
-                    </span>
-                    <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-red-950/80 text-red-300 border border-red-500/40">
-                      ПОВЫШЕННАЯ ОПАСНОСТЬ
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-1 gap-2">
-                    {threatsList.map((threat, idx) => (
-                      <div
-                        key={idx}
-                        className="p-3 rounded-xl bg-red-950/30 border border-red-800/60 flex items-start gap-2.5 text-sm text-red-100"
-                      >
-                        <span className="w-6 h-6 rounded-full bg-red-900/70 text-red-300 border border-red-500/40 flex items-center justify-center text-xs font-bold font-mono flex-shrink-0 mt-0.5">
-                          {String(idx + 1).padStart(2, '0')}
-                        </span>
-                        <span className="leading-relaxed text-red-100">{threat}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* SECTION 5: ПОДРОБНОСТИ */}
-              {order.details && (
-                <div className="rounded-xl bg-stone-950/60 border border-stone-800/80 p-3.5 space-y-1.5">
-                  <div className="text-xs font-mono-code uppercase font-semibold text-stone-400 flex items-center gap-1.5">
-                    <Clock className="w-4 h-4 text-stone-400" />
-                    <span>Подробности выполнения:</span>
-                  </div>
-                  <p className="text-sm text-stone-200 leading-relaxed">
-                    {order.details}
-                  </p>
-                </div>
-              )}
-
-              {/* SECTION 6: ОСОБЫЕ ПРЕДПИСАНИЯ И ДИРЕКТИВЫ */}
-              {hasDirectives && (
-                <div className="space-y-2">
-                  <div className="text-xs font-mono-code uppercase font-semibold text-stone-400">
-                    Особые предписания и директивы:
-                  </div>
-                  <ul className="space-y-1.5 text-sm text-stone-300 font-mono-code pl-1">
-                    {order.tacticalNotes!.map((note, idx) => (
-                      <li key={idx} className="flex items-start gap-2">
-                        <span className="text-stone-500">•</span>
-                        <span className="leading-relaxed">{note}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {/* SECTION 7: ВОЗНАГРАЖДЕНИЕ И БОНУС */}
-              {hasBonus && (
-                <div className="p-3.5 rounded-xl bg-amber-950/20 border border-amber-500/20 flex items-center justify-between text-xs sm:text-sm gap-2">
-                  <span className="font-mono text-stone-300 uppercase">
-                    Дополнительный бонус:
-                  </span>
-                  <span className="font-semibold text-amber-200">
-                    {order.rewardBonus}
-                  </span>
-                </div>
-              )}
-
-              {/* SECTION 8: STAMPS & ACCEPTANCE DATE */}
-              <div className="pt-3 border-t border-stone-800/80 flex flex-wrap items-center justify-between gap-4">
-                {order.assignedFixer ? (
-                  <div className="flex flex-wrap items-center gap-3">
-                    <div className="rubber-stamp border-2 border-red-600 text-red-500 bg-red-950/20 font-cinzel text-xs sm:text-sm">
-                      [ {order.stampText || 'ПРИНЯТО К ИСПОЛНЕНИЮ'} ]
-                    </div>
-                    <div className="text-xs sm:text-sm font-mono-code space-y-1">
-                      <div className="text-stone-100 font-bold">
-                        Исполнитель: {order.assignedFixer}
-                      </div>
-                      <div className="text-stone-400 text-xs flex items-center gap-2 flex-wrap">
-                        <span>Офис: {order.assignedOffice || 'Свободный фиксер'}</span>
-                        {order.signedDate && (
-                          <span className="flex items-center gap-1 text-amber-300 font-semibold bg-amber-950/60 px-2 py-0.5 rounded border border-amber-500/30">
-                            <Calendar className="w-3.5 h-3.5 text-amber-400" />
-                            Дата принятия: {order.signedDate}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    {!isReadOnly && onClearStamp && (
-                      <button
-                        type="button"
-                        onClick={() => onClearStamp(order.id)}
-                        className="px-2.5 py-1.5 rounded-lg bg-stone-900 hover:bg-stone-800 text-stone-300 hover:text-red-400 border border-stone-800 hover:border-red-900/60 text-xs font-mono flex items-center gap-1.5 transition-colors cursor-pointer"
-                        title="Снять штамп принятия и очистить назначенного исполнителя"
-                      >
-                        <RotateCcw className="w-3.5 h-3.5 text-red-400" />
-                        <span>Снять штамп</span>
-                      </button>
-                    )}
-                  </div>
-                ) : (
-                  <div className="text-xs sm:text-sm text-stone-300 font-mono-code flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                    <span>Лист открыт для регистрации фиксеров</span>
-                  </div>
-                )}
-
-                {/* Barcode & Verification */}
-                <div className="flex items-center gap-2 text-stone-500 font-mono text-xs select-none">
-                  <span className="tracking-widest">||| | |||| || |||</span>
-                  <span>{order.code}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        )}
       </div>
 
       {/* Footer Action Buttons */}
-      <div className="no-print relative z-10 border-t border-stone-800/90 bg-stone-950/80 px-4 sm:px-5 py-3 flex flex-wrap items-center justify-between gap-2.5">
-        <div className="flex items-center gap-2">
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="no-print relative z-10 border-t border-stone-800/90 bg-stone-950/80 px-3.5 py-2.5 flex flex-wrap items-center justify-between gap-2 cursor-default"
+      >
+        <div className="flex items-center gap-1.5">
           {isReadOnly ? (
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-mono text-stone-300 bg-stone-900/90 px-3 py-1.5 rounded-lg border border-stone-800 flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-amber-400"></span>
-                <span>Режим чтения (Гость)</span>
-              </span>
-            </div>
+            <span className="text-[11px] font-mono text-stone-300 bg-stone-900/90 px-2.5 py-1 rounded-md border border-stone-800 flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+              <span>Только чтение</span>
+            </span>
           ) : (
             <>
               {order.status === 'available' ? (
                 <button
+                  type="button"
                   onClick={() => onSignClick(order)}
-                  className="px-4 py-2 rounded-lg text-xs sm:text-[13px] font-bold font-mono uppercase tracking-wider flex items-center gap-1.5 bg-amber-500 hover:bg-amber-400 text-stone-950 shadow-md shadow-amber-950/40 transition-all cursor-pointer"
+                  className="px-3 py-1.5 rounded-lg text-xs font-bold font-mono uppercase tracking-wider flex items-center gap-1.5 bg-amber-500 hover:bg-amber-400 text-stone-950 shadow-md shadow-amber-950/40 transition-all cursor-pointer"
                 >
-                  <PenTool className="w-4 h-4" />
-                  <span>Принять заказ</span>
+                  <PenTool className="w-3.5 h-3.5" />
+                  <span>Принять</span>
                 </button>
               ) : order.status === 'in_progress' ? (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
                   <button
+                    type="button"
                     onClick={() => onStatusChange(order.id, 'completed')}
-                    className="px-3.5 py-2 rounded-lg text-xs sm:text-[13px] font-bold font-mono uppercase tracking-wider flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white transition-all shadow-md cursor-pointer"
+                    className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold font-mono uppercase tracking-wider flex items-center gap-1 bg-emerald-600 hover:bg-emerald-500 text-white transition-all shadow-sm cursor-pointer"
                   >
-                    <CheckCircle2 className="w-4 h-4" />
+                    <CheckCircle2 className="w-3.5 h-3.5" />
                     <span>Завершить</span>
                   </button>
                   <button
+                    type="button"
                     onClick={() => onStatusChange(order.id, 'failed')}
-                    className="px-3 py-2 rounded-lg text-xs sm:text-[13px] font-bold font-mono uppercase tracking-wider flex items-center gap-1.5 bg-red-950 hover:bg-red-900 text-red-300 border border-red-700/60 transition-all cursor-pointer"
+                    className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold font-mono uppercase tracking-wider flex items-center gap-1 bg-red-950 hover:bg-red-900 text-red-300 border border-red-700/60 transition-all cursor-pointer"
                     title="Отметить как проваленный"
                   >
-                    <XCircle className="w-4 h-4 text-red-400" />
+                    <XCircle className="w-3.5 h-3.5 text-red-400" />
                     <span>Провал</span>
                   </button>
                 </div>
               ) : (
-                <div className="flex flex-wrap items-center gap-2">
-                  <div
-                    className={`flex items-center gap-1.5 text-xs sm:text-[13px] font-bold font-mono ${
-                      order.status === 'completed' ? 'text-blue-400' : 'text-red-400'
-                    }`}
-                  >
-                    {order.status === 'completed' ? (
-                      <Check className="w-4 h-4" />
-                    ) : (
-                      <XCircle className="w-4 h-4 text-red-500" />
-                    )}
-                    <span>{order.status === 'completed' ? 'ВЫПОЛНЕН' : 'ПРОВАЛЕН'}</span>
-                  </div>
-
+                <div className="flex items-center gap-1.5">
                   {onUnarchive && (
                     <button
                       type="button"
                       onClick={() => onUnarchive(order.id)}
-                      className="px-3.5 py-2 rounded-lg text-xs sm:text-[13px] font-bold font-mono uppercase tracking-wider flex items-center gap-1.5 bg-amber-500/15 hover:bg-amber-500 text-amber-300 hover:text-stone-950 border border-amber-500/40 hover:border-amber-400 transition-all cursor-pointer shadow-sm"
-                      title="Вытащить контракт из архива в реестр: вернуть в статус «Доступен» без принятого статуса и без штампа"
+                      className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold font-mono uppercase tracking-wider flex items-center gap-1 bg-amber-500/15 hover:bg-amber-500 text-amber-300 hover:text-stone-950 border border-amber-500/40 transition-all cursor-pointer"
+                      title="Вытащить контракт из архива в реестр"
                     >
-                      <RotateCcw className="w-4 h-4" />
-                      <span>Вытащить из архива</span>
+                      <RotateCcw className="w-3 h-3" />
+                      <span>Из архива</span>
                     </button>
                   )}
                 </div>
               )}
 
               <button
+                type="button"
                 onClick={() => onEditClick(order)}
-                className="px-2.5 py-2 rounded-lg hover:bg-stone-800 text-stone-300 hover:text-stone-100 border border-stone-800 text-xs sm:text-[13px] flex items-center gap-1.5 transition-colors cursor-pointer"
+                className="p-1.5 rounded-lg hover:bg-stone-800 text-stone-300 hover:text-stone-100 border border-stone-800 text-xs flex items-center transition-colors cursor-pointer"
                 title="Редактировать параметры контракта"
               >
-                <Edit3 className="w-4 h-4" />
-                <span className="hidden sm:inline">Изменить</span>
+                <Edit3 className="w-3.5 h-3.5" />
               </button>
             </>
           )}
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* Quick toggle details */}
+        <div className="flex items-center gap-1.5">
           <button
-            onClick={() => setIsExpanded(!isExpanded)}
-            className="px-2.5 py-2 rounded-lg hover:bg-stone-800 text-stone-300 hover:text-stone-100 border border-stone-800 text-xs sm:text-[13px] flex items-center gap-1.5 font-mono transition-colors cursor-pointer"
+            type="button"
+            onClick={() => onOpenDetail(order)}
+            className="px-2.5 py-1.5 rounded-lg hover:bg-stone-800 text-amber-300 hover:text-amber-200 border border-stone-800 text-xs flex items-center gap-1 font-mono transition-colors cursor-pointer"
+            title="Открыть полный лист заказа"
           >
-            {isExpanded ? (
-              <>
-                <ChevronUp className="w-4 h-4 text-amber-400" />
-                <span>Свернуть</span>
-              </>
-            ) : (
-              <>
-                <ChevronDown className="w-4 h-4 text-amber-400" />
-                <span>Детали</span>
-              </>
-            )}
+            <Maximize2 className="w-3.5 h-3.5" />
+            <span>Открыть</span>
           </button>
-
-          <button
-            onClick={copyFullText}
-            className="px-3 py-2 rounded-lg hover:bg-stone-800 text-stone-300 hover:text-stone-100 border border-stone-800 text-xs sm:text-[13px] flex items-center gap-1.5 transition-colors cursor-pointer"
-            title="Скопировать официальный текст в буфер обмена"
-          >
-            {copied ? (
-              <>
-                <Check className="w-4 h-4 text-emerald-400" />
-                <span className="text-emerald-400">Скопировано</span>
-              </>
-            ) : (
-              <>
-                <Copy className="w-4 h-4" />
-                <span>Копия</span>
-              </>
-            )}
-          </button>
-
-          {onPrintClick ? (
-            <button
-              onClick={() => onPrintClick(order)}
-              className="px-3 py-2 rounded-lg hover:bg-stone-800 text-stone-300 hover:text-stone-100 border border-stone-800 text-xs sm:text-[13px] flex items-center gap-1.5 transition-colors cursor-pointer"
-              title="Экспорт в PDF / Печать этого бланка"
-            >
-              <FileDown className="w-4 h-4 text-amber-400" />
-              <span className="hidden sm:inline">PDF</span>
-            </button>
-          ) : (
-            <button
-              onClick={() => window.print()}
-              className="p-2 rounded-lg hover:bg-stone-800 text-stone-300 hover:text-stone-100 border border-stone-800 text-xs flex items-center gap-1 transition-colors cursor-pointer"
-              title="Печать данного бланка"
-            >
-              <Printer className="w-4 h-4" />
-            </button>
-          )}
         </div>
       </div>
     </article>

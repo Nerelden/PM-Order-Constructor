@@ -112,6 +112,30 @@
         }
       },
       "required": ["id", "code", "title", "client", "clientCategory", "objective", "rewardAhn", "status"]
+    },
+    "CityDateSettings": {
+      "title": "CityDateSettings",
+      "description": "Глобальная настройка текущей даты Города (по умолчанию 9 июля 983 года)",
+      "type": "object",
+      "properties": {
+        "day": {
+          "type": "integer",
+          "description": "День месяца (1-31)"
+        },
+        "month": {
+          "type": "integer",
+          "description": "Месяц (1-12)"
+        },
+        "year": {
+          "type": "integer",
+          "description": "Год по календарю Города"
+        },
+        "updatedAt": {
+          "type": "number",
+          "description": "Временная метка обновления"
+        }
+      },
+      "required": ["day", "month", "year"]
     }
   },
   "firestore": {
@@ -119,7 +143,13 @@
       "schema": {
         "$ref": "#/entities/OrderContract"
       },
-      "description": "Коллекция активных официальных контрактов и листов заказов Города (до 10 документов)"
+      "description": "Коллекция активных официальных контрактов и листов заказов Города"
+    },
+    "/settings/{settingId}": {
+      "schema": {
+        "$ref": "#/entities/CityDateSettings"
+      },
+      "description": "Настройки реестра Города (текущая дата Города в документе city_date)"
     }
   }
 }

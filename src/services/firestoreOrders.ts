@@ -10,7 +10,7 @@ import {
 } from 'firebase/firestore';
 import { getApps, initializeApp, getApp } from 'firebase/app';
 import firebaseConfig from '../../firebase-applet-config.json';
-import { OrderContract } from '../types';
+import { OrderContract, CityDate, DEFAULT_CITY_DATE, normalizeCityDate } from '../types';
 import { auth } from './firebaseAuth';
 
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
@@ -82,6 +82,8 @@ export function sanitizeForFirestore(obj: any): any {
 }
 
 const ORDERS_COLLECTION = 'orders';
+const SETTINGS_COLLECTION = 'settings';
+const CITY_DATE_DOC_ID = 'city_date';
 
 /**
  * Subscribes to the real-time orders collection in Firestore.
@@ -170,6 +172,55 @@ export const clearAllOrdersFromFirestore = async () => {
     }
   } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, ORDERS_COLLECTION);
+    throw err;
+  }
+};
+
+/**
+ * Subscribes to the shared City Date setting in Firestore.
+ */
+export const subscribeToCityDate = (
+  onUpdate: (cityDate: CityDate) => void,
+  onError?: (err: any) => void
+) => {
+  const docRef = doc(db, SETTINGS_COLLECTION, CITY_DATE_DOC_ID);
+  const path = `${SETTINGS_COLLECTION}/${CITY_DATE_DOC_ID}`;
+
+  return onSnapshot(
+    docRef,
+    (snapshot) => {
+      if (!snapshot.exists()) {
+        onUpdate(DEFAULT_CITY_DATE);
+        return;
+      }
+      const data = snapshot.data() as Partial<CityDate>;
+      onUpdate(normalizeCityDate(data));
+    },
+    (err) => {
+      handleFirestoreError(err, OperationType.GET, path);
+      if (onError) onError(err);
+    }
+  );
+};
+
+/**
+ * Saves the configured City Date setting to Firestore (staff-only per security rules).
+ */
+export const saveCityDateToFirestore = async (cityDate: CityDate): Promise<CityDate> => {
+  const path = `${SETTINGS_COLLECTION}/${CITY_DATE_DOC_ID}`;
+  const docRef = doc(db, SETTINGS_COLLECTION, CITY_DATE_DOC_ID);
+  const normalized = normalizeCityDate({
+    day: cityDate.day,
+    month: cityDate.month,
+    year: cityDate.year,
+    updatedAt: Date.now(),
+  });
+
+  try {
+    await setDoc(docRef, normalized);
+    return normalized;
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, path);
     throw err;
   }
 };

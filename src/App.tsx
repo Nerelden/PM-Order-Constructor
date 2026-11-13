@@ -10,7 +10,6 @@ import {
   PlusCircle,
   Search,
   Filter,
-  FileDown,
   Trash2,
   Loader2,
   Archive,
@@ -26,25 +25,36 @@ import {
   RotateCcw,
   Layers
 } from 'lucide-react';
-import { OrderContract, VisualTheme, ClientCategory } from './types';
+import {
+  OrderContract,
+  VisualTheme,
+  ClientCategory,
+  CityDate,
+  DEFAULT_CITY_DATE,
+  normalizeCityDate
+} from './types';
 import { Header } from './components/Header';
 import { OrderSheet } from './components/OrderSheet';
 import { SignOrderModal } from './components/SignOrderModal';
 import { EditOrderModal } from './components/EditOrderModal';
 import { CreateOrderModal } from './components/CreateOrderModal';
+import { OrderDetailModal } from './components/OrderDetailModal';
 import { ConfirmDeleteModal } from './components/ConfirmDeleteModal';
 import { ConfirmResetModal } from './components/ConfirmResetModal';
-import { PdfExportModal } from './components/PdfExportModal';
+import { CityDateModal } from './components/CityDateModal';
 import { AuthGate } from './components/AuthGate';
 import { subscribeToAuth, logout, isGuestUser } from './services/firebaseAuth';
 import {
   subscribeToRealtimeOrders,
   syncOrderToFirestore,
   deleteOrderFromFirestore,
-  clearAllOrdersFromFirestore
+  clearAllOrdersFromFirestore,
+  subscribeToCityDate,
+  saveCityDateToFirestore
 } from './services/firestoreOrders';
 
 const LOCAL_STORAGE_KEY = 'city_order_sheets_data_v5';
+const CITY_DATE_STORAGE_KEY = 'city_order_sheets_city_date_v1';
 
 export default function App() {
   const [orders, setOrders] = useState<OrderContract[]>(() => {
@@ -68,28 +78,40 @@ export default function App() {
   const [statusFilter, setStatusFilter] = useState<'all' | 'available' | 'in_progress' | 'completed' | 'failed'>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Expand / collapse all orders
-  const [allExpanded, setAllExpanded] = useState(false);
+  // Archive accordion & centered detail modal
   const [isArchiveOpen, setIsArchiveOpen] = useState(true);
+  const [viewingOrderId, setViewingOrderId] = useState<string | null>(null);
 
   // Strict Email Auth State
   const [user, setUser] = useState<User | null>(null);
   const isGuest = isGuestUser(user);
   const [isAuthChecking, setIsAuthChecking] = useState(true);
 
+  const [cityDate, setCityDate] = useState<CityDate>(() => {
+    try {
+      const savedDate = localStorage.getItem(CITY_DATE_STORAGE_KEY);
+      if (savedDate) {
+        return normalizeCityDate(JSON.parse(savedDate));
+      }
+    } catch (e) {
+      console.warn('Failed to parse saved city date from localStorage', e);
+    }
+    return DEFAULT_CITY_DATE;
+  });
+
   // Modals
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
+  const [isCityDateModalOpen, setIsCityDateModalOpen] = useState(false);
   const [signingOrder, setSigningOrder] = useState<OrderContract | null>(null);
   const [editingOrder, setEditingOrder] = useState<OrderContract | null>(null);
   const [deletingOrder, setDeletingOrder] = useState<OrderContract | null>(null);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
 
-  // Track viewport size for responsive masonry (4 cols on desktop >= 1280px, 2 cols on tablet >= 768px, 1 col on mobile)
+  // Track viewport size for responsive 3-column grid (3 cols >= 1024px, 2 cols >= 640px, 1 col on mobile)
   const getColumnCount = () => {
-    if (typeof window === 'undefined') return 4;
-    if (window.innerWidth >= 1280) return 4;
-    if (window.innerWidth >= 768) return 2;
+    if (typeof window === 'undefined') return 3;
+    if (window.innerWidth >= 1024) return 3;
+    if (window.innerWidth >= 640) return 2;
     return 1;
   };
   const [colCount, setColCount] = useState<number>(getColumnCount);
@@ -138,10 +160,36 @@ export default function App() {
       }
     );
 
+    const unsubscribeDate = subscribeToCityDate(
+      (remoteDate) => {
+        setCityDate(remoteDate);
+        try {
+          localStorage.setItem(CITY_DATE_STORAGE_KEY, JSON.stringify(remoteDate));
+        } catch (e) {
+          console.warn('Failed to cache city date to localStorage', e);
+        }
+      },
+      (err) => {
+        console.error('City date sync fallback:', err);
+      }
+    );
+
     return () => {
       if (unsubscribe) unsubscribe();
+      if (unsubscribeDate) unsubscribeDate();
     };
   }, [user]);
+
+  const handleSaveCityDate = async (newDate: CityDate) => {
+    if (isGuest) return;
+    const saved = await saveCityDateToFirestore(newDate);
+    setCityDate(saved);
+    try {
+      localStorage.setItem(CITY_DATE_STORAGE_KEY, JSON.stringify(saved));
+    } catch (e) {
+      console.warn('Failed to cache city date to localStorage', e);
+    }
+  };
 
   const handleLogout = async () => {
     try {
@@ -345,16 +393,17 @@ export default function App() {
 
   const totalCompletedCount = orders.filter((o) => o.status === 'completed').length;
   const totalFailedCount = orders.filter((o) => o.status === 'failed').length;
+  const viewingOrder = orders.find((o) => o.id === viewingOrderId) || null;
 
-  // Render orders in a responsive 4-column masonry on desktop so shorter cards pull up snugly without empty gaps
+  // Render orders in a responsive 3-column masonry grid with compact cards
   const renderOrdersGrid = (ordersToRender: OrderContract[]) => {
     const renderCard = (order: OrderContract) => (
       <OrderSheet
         key={order.id}
         order={order}
         theme={theme}
-        forceExpanded={allExpanded}
         isReadOnly={isGuest}
+        onOpenDetail={(o) => setViewingOrderId(o.id)}
         onSignClick={(o) => {
           if (isGuest) return;
           setSigningOrder(o);
@@ -368,19 +417,14 @@ export default function App() {
           const target = orders.find((ord) => ord.id === id);
           if (target) setDeletingOrder(target);
         }}
-        onPrintClick={() => {
-          setEditingOrder(null);
-          setIsPdfModalOpen(true);
-        }}
         onStatusChange={handleStatusChange}
         onUnarchive={handleUnarchive}
-        onClearStamp={handleClearStamp}
       />
     );
 
     if (colCount <= 1 || ordersToRender.length <= 1) {
       return (
-        <div className="flex flex-col gap-5 transition-all">
+        <div className="flex flex-col gap-4 transition-all">
           {ordersToRender.map(renderCard)}
         </div>
       );
@@ -391,12 +435,12 @@ export default function App() {
       columns[idx % colCount].push(order);
     });
 
-    const gridColsClass = colCount === 4 ? 'grid-cols-4' : 'grid-cols-2';
+    const gridColsClass = colCount === 3 ? 'grid-cols-3' : 'grid-cols-2';
 
     return (
-      <div className={`grid ${gridColsClass} gap-4 sm:gap-5 items-start transition-all`}>
+      <div className={`grid ${gridColsClass} gap-4 items-start transition-all`}>
         {columns.map((colOrders, colIdx) => (
-          <div key={colIdx} className="flex flex-col gap-4 sm:gap-5 min-w-0">
+          <div key={colIdx} className="flex flex-col gap-4 min-w-0">
             {colOrders.map(renderCard)}
           </div>
         ))}
@@ -427,35 +471,35 @@ export default function App() {
         onLogout={handleLogout}
         theme={theme}
         setTheme={setTheme}
-        onOpenPdfModal={() => setIsPdfModalOpen(true)}
+        cityDate={cityDate}
+        onOpenCityDateModal={() => {
+          if (isGuest) return;
+          setIsCityDateModalOpen(true);
+        }}
       />
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-[1920px] w-full mx-auto px-4 sm:px-8 py-6 sm:py-9 space-y-9">
+      <main className="flex-1 max-w-[1440px] w-full mx-auto px-4 sm:px-6 py-5 sm:py-6 space-y-6">
         {/* Real-time Status & Control Bar */}
-        <section className="no-print rounded-2xl bg-gradient-to-r from-stone-900 via-stone-900/90 to-amber-950/40 border border-stone-800 p-5 sm:p-6 flex flex-col lg:flex-row lg:items-center justify-between gap-4 shadow-lg">
-          <div className="space-y-1.5">
-            <div className="flex flex-wrap items-center gap-3">
-              <h2 className="font-cinzel text-lg sm:text-xl font-bold text-stone-100 flex items-center gap-2">
+        <section className="no-print rounded-2xl bg-gradient-to-r from-stone-900 via-stone-900/90 to-amber-950/40 border border-stone-800 p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-3.5 shadow-lg">
+          <div className="space-y-1">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <h2 className="font-cinzel text-base sm:text-lg font-bold text-stone-100 flex items-center gap-2">
                 АКТИВНЫЙ РЕЕСТР ЗАКАЗОВ
               </h2>
-              <span className="flex items-center gap-2 text-xs font-mono px-2.5 py-1 rounded-md bg-emerald-950/80 text-emerald-300 border border-emerald-500/30">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                <span>СИНХРОНИЗАЦИЯ: ОНЛАЙН</span>
-              </span>
               {isGuest && (
-                <span className="flex items-center gap-2 text-xs font-mono px-3 py-1 rounded-md bg-amber-950/80 text-amber-300 border border-amber-500/40 font-bold">
-                  <span className="w-2 h-2 rounded-full bg-amber-400"></span>
+                <span className="flex items-center gap-1.5 text-[11px] font-mono px-2.5 py-0.5 rounded-md bg-amber-950/80 text-amber-300 border border-amber-500/40 font-bold">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
                   <span>РЕЖИМ ГОСТЯ (ТОЛЬКО ЧТЕНИЕ)</span>
                 </span>
               )}
             </div>
-            <p className="text-xs sm:text-sm text-stone-300/90 font-sans max-w-3xl leading-relaxed">
-              Единый реестр контрактов Города. Заказы раскрываются кликом для подробностей. Выполненные и проваленные дела автоматически архивируются внизу.
+            <p className="text-xs sm:text-[13px] text-stone-300/90 font-sans max-w-3xl leading-relaxed">
+              Единый реестр контрактов Города. Нажмите на любую карточку, чтобы открыть полный бланк заказа по центру экрана.
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2.5">
             <button
               onClick={() => {
                 if (isGuest) return;
@@ -467,7 +511,7 @@ export default function App() {
                   ? 'Создание заказов недоступно в гостевом режиме (только чтение)'
                   : 'Создать новый заказ в конструкторе'
               }
-              className={`px-5 py-2.5 rounded-xl font-bold text-xs sm:text-sm flex items-center gap-2 shadow-lg font-mono transition-all ${
+              className={`px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-2 shadow-lg font-mono transition-all ${
                 isGuest
                   ? 'bg-stone-800/80 text-stone-500 border border-stone-700/50 cursor-not-allowed opacity-60'
                   : 'bg-amber-500 hover:bg-amber-400 text-stone-950 shadow-amber-950/40 cursor-pointer'
@@ -477,41 +521,13 @@ export default function App() {
               <span>Создать заказ</span>
             </button>
 
-            {/* Global Expand/Collapse Toggle */}
-            <button
-              onClick={() => setAllExpanded(!allExpanded)}
-              className="px-4 py-2.5 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-100 text-xs sm:text-sm font-mono flex items-center gap-2 border border-stone-700 transition-colors cursor-pointer"
-              title={allExpanded ? 'Свернуть все заказы для компактности' : 'Развернуть все заказы'}
-            >
-              {allExpanded ? (
-                <>
-                  <ChevronUp className="w-4 h-4 text-amber-400" />
-                  <span>Свернуть все</span>
-                </>
-              ) : (
-                <>
-                  <ChevronDown className="w-4 h-4 text-amber-400" />
-                  <span>Развернуть все</span>
-                </>
-              )}
-            </button>
-
-            <button
-              onClick={() => setIsPdfModalOpen(true)}
-              className="px-4 py-2.5 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-100 text-xs sm:text-sm font-mono flex items-center gap-2 border border-stone-700 transition-colors cursor-pointer"
-              title="Экспорт в PDF (A4) или печать бланков"
-            >
-              <FileDown className="w-4 h-4 text-amber-400" />
-              <span>Печать / PDF</span>
-            </button>
-
             {!isGuest && orders.length > 0 && (
               <button
                 onClick={() => setIsResetModalOpen(true)}
-                className="px-3.5 py-2.5 rounded-xl bg-stone-900 hover:bg-red-950/60 text-stone-400 hover:text-red-300 text-xs sm:text-sm font-mono flex items-center gap-2 border border-stone-800 hover:border-red-800/60 transition-colors cursor-pointer"
+                className="px-3 py-2 rounded-xl bg-stone-900 hover:bg-red-950/60 text-stone-400 hover:text-red-300 text-xs font-mono flex items-center gap-1.5 border border-stone-800 hover:border-red-800/60 transition-colors cursor-pointer"
                 title="Очистить реестр и удалить все контракты"
               >
-                <Trash2 className="w-4 h-4" />
+                <Trash2 className="w-3.5 h-3.5" />
                 <span>Очистить все</span>
               </button>
             )}
@@ -823,8 +839,8 @@ export default function App() {
       </main>
 
       {/* Footer */}
-      <footer className="no-print border-t border-stone-800/80 bg-[#090b0e] py-7 text-center text-xs sm:text-sm text-stone-400 font-mono-code">
-        <div className="max-w-[1920px] mx-auto px-4 sm:px-8 flex flex-col sm:flex-row items-center justify-between gap-3">
+      <footer className="no-print border-t border-stone-800/80 bg-[#090b0e] py-5 text-center text-xs text-stone-400 font-mono-code">
+        <div className="max-w-[1440px] mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-2.5">
           <div>
             <span>БЮРО КОНТРАКТОВ ГОРОДА • ЗАКРЫТЫЙ РЕЕСТР НАДЗОРА</span>
           </div>
@@ -837,17 +853,42 @@ export default function App() {
       </footer>
 
       {/* Modals */}
+      <OrderDetailModal
+        order={viewingOrder}
+        theme={theme}
+        isOpen={!!viewingOrder}
+        hasNestedModalOpen={Boolean(signingOrder || editingOrder || deletingOrder || isCityDateModalOpen)}
+        isReadOnly={isGuest}
+        onClose={() => setViewingOrderId(null)}
+        onSignClick={(o) => {
+          if (isGuest) return;
+          setSigningOrder(o);
+        }}
+        onEditClick={(o) => {
+          if (isGuest) return;
+          setEditingOrder(o);
+        }}
+        onDeleteClick={(id) => {
+          if (isGuest) return;
+          const target = orders.find((ord) => ord.id === id);
+          if (target) setDeletingOrder(target);
+        }}
+        onStatusChange={handleStatusChange}
+        onUnarchive={handleUnarchive}
+        onClearStamp={handleClearStamp}
+      />
+
       <CreateOrderModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
         onAddOrder={handleAddOrder}
       />
 
-      <PdfExportModal
-        isOpen={isPdfModalOpen}
-        onClose={() => setIsPdfModalOpen(false)}
-        orders={orders}
-        theme={theme}
+      <CityDateModal
+        isOpen={isCityDateModalOpen}
+        cityDate={cityDate}
+        onClose={() => setIsCityDateModalOpen(false)}
+        onSave={handleSaveCityDate}
       />
 
       <SignOrderModal

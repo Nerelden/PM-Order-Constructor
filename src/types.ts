@@ -58,6 +58,82 @@ export interface OrderContract {
 
 export type VisualTheme = 'parchment' | 'terminal';
 
+export interface CityDate {
+  day: number;
+  month: number; // 1-12
+  year: number;
+  updatedAt?: number;
+}
+
+export const DEFAULT_CITY_DATE: CityDate = {
+  day: 9,
+  month: 7,
+  year: 983,
+};
+
+export const MONTH_NAMES_NOMINATIVE = [
+  'Январь',
+  'Февраль',
+  'Март',
+  'Апрель',
+  'Май',
+  'Июнь',
+  'Июль',
+  'Август',
+  'Сентябрь',
+  'Октябрь',
+  'Ноябрь',
+  'Декабрь',
+];
+
+export const MONTH_NAMES_GENITIVE = [
+  'января',
+  'февраля',
+  'марта',
+  'апреля',
+  'мая',
+  'июня',
+  'июля',
+  'августа',
+  'сентября',
+  'октября',
+  'ноября',
+  'декабря',
+];
+
+export function getDaysInMonth(month: number, year: number): number {
+  if (month === 2) {
+    const isLeap = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+    return isLeap ? 29 : 28;
+  }
+  if ([4, 6, 9, 11].includes(month)) {
+    return 30;
+  }
+  return 31;
+}
+
+export function normalizeCityDate(input: Partial<CityDate> | null | undefined): CityDate {
+  const rawYear = Number(input?.year);
+  const year = Number.isFinite(rawYear) && rawYear >= 1 ? Math.min(99999, Math.trunc(rawYear)) : DEFAULT_CITY_DATE.year;
+  const rawMonth = Number(input?.month);
+  const month = Number.isFinite(rawMonth) ? Math.max(1, Math.min(12, Math.trunc(rawMonth))) : DEFAULT_CITY_DATE.month;
+  const maxDay = getDaysInMonth(month, year);
+  const rawDay = Number(input?.day);
+  const day = Number.isFinite(rawDay) ? Math.max(1, Math.min(maxDay, Math.trunc(rawDay))) : DEFAULT_CITY_DATE.day;
+  return {
+    day,
+    month,
+    year,
+    ...(typeof input?.updatedAt === 'number' ? { updatedAt: input.updatedAt } : {}),
+  };
+}
+
+export function formatCityDate(date: CityDate): string {
+  const safe = normalizeCityDate(date);
+  const monthLabel = MONTH_NAMES_GENITIVE[safe.month - 1] || MONTH_NAMES_GENITIVE[6];
+  return `${safe.day} ${monthLabel} ${safe.year} года`;
+}
+
 // Helper functions for RGB and Hex color conversions
 export function hexToRgb(hex: string): RGBColor {
   const clean = hex.replace('#', '').trim();
