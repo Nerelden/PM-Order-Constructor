@@ -20,13 +20,12 @@ import {
   XCircle,
   FolderArchive
 } from 'lucide-react';
-import { OrderContract, VisualTheme, ClientCategory, MAX_ORDERS_COUNT } from './types';
+import { OrderContract, VisualTheme, ClientCategory } from './types';
 import { Header } from './components/Header';
 import { OrderSheet } from './components/OrderSheet';
 import { SignOrderModal } from './components/SignOrderModal';
 import { EditOrderModal } from './components/EditOrderModal';
 import { CreateOrderModal } from './components/CreateOrderModal';
-import { ComparisonModal } from './components/ComparisonModal';
 import { ConfirmDeleteModal } from './components/ConfirmDeleteModal';
 import { ConfirmResetModal } from './components/ConfirmResetModal';
 import { PdfExportModal } from './components/PdfExportModal';
@@ -73,7 +72,6 @@ export default function App() {
   const [isAuthChecking, setIsAuthChecking] = useState(true);
 
   // Modals
-  const [isComparisonOpen, setIsComparisonOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
   const [signingOrder, setSigningOrder] = useState<OrderContract | null>(null);
@@ -81,12 +79,18 @@ export default function App() {
   const [deletingOrder, setDeletingOrder] = useState<OrderContract | null>(null);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
 
-  // Track viewport size for 2-column masonry (prevents vertical gaps from CSS grid row height stretching)
-  const [isLg, setIsLg] = useState(() => (typeof window !== 'undefined' ? window.innerWidth >= 1024 : true));
+  // Track viewport size for responsive masonry (4 cols on desktop >= 1280px, 2 cols on tablet >= 768px, 1 col on mobile)
+  const getColumnCount = () => {
+    if (typeof window === 'undefined') return 4;
+    if (window.innerWidth >= 1280) return 4;
+    if (window.innerWidth >= 768) return 2;
+    return 1;
+  };
+  const [colCount, setColCount] = useState<number>(getColumnCount);
 
   useEffect(() => {
     const handleResize = () => {
-      setIsLg(window.innerWidth >= 1024);
+      setColCount(getColumnCount());
     };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
@@ -252,10 +256,6 @@ export default function App() {
   // Add new order via constructor in real-time
   const handleAddOrder = async (newOrder: OrderContract) => {
     if (isGuest) return;
-    if (orders.length >= MAX_ORDERS_COUNT) {
-      alert(`Достигнут максимальный лимит: ${MAX_ORDERS_COUNT} заказов в реестре.`);
-      return;
-    }
 
     const orderWithTime = { ...newOrder, updatedAt: Date.now() };
     setOrders((prev) => [orderWithTime, ...prev]);
@@ -340,7 +340,7 @@ export default function App() {
   const totalCompletedCount = orders.filter((o) => o.status === 'completed').length;
   const totalFailedCount = orders.filter((o) => o.status === 'failed').length;
 
-  // Render orders in a 2-column masonry on desktop so shorter cards pull up snugly without empty gaps
+  // Render orders in a responsive 4-column masonry on desktop so shorter cards pull up snugly without empty gaps
   const renderOrdersGrid = (ordersToRender: OrderContract[]) => {
     const renderCard = (order: OrderContract) => (
       <OrderSheet
@@ -372,25 +372,28 @@ export default function App() {
       />
     );
 
-    if (!isLg || ordersToRender.length <= 1) {
+    if (colCount <= 1 || ordersToRender.length <= 1) {
       return (
-        <div className="flex flex-col gap-6 sm:gap-7 transition-all">
+        <div className="flex flex-col gap-5 transition-all">
           {ordersToRender.map(renderCard)}
         </div>
       );
     }
 
-    const leftCol = ordersToRender.filter((_, idx) => idx % 2 === 0);
-    const rightCol = ordersToRender.filter((_, idx) => idx % 2 === 1);
+    const columns: OrderContract[][] = Array.from({ length: colCount }, () => []);
+    ordersToRender.forEach((order, idx) => {
+      columns[idx % colCount].push(order);
+    });
+
+    const gridColsClass = colCount === 4 ? 'grid-cols-4' : 'grid-cols-2';
 
     return (
-      <div className="grid grid-cols-2 gap-6 sm:gap-7 items-start transition-all">
-        <div className="flex flex-col gap-6 sm:gap-7">
-          {leftCol.map(renderCard)}
-        </div>
-        <div className="flex flex-col gap-6 sm:gap-7">
-          {rightCol.map(renderCard)}
-        </div>
+      <div className={`grid ${gridColsClass} gap-4 sm:gap-5 items-start transition-all`}>
+        {columns.map((colOrders, colIdx) => (
+          <div key={colIdx} className="flex flex-col gap-4 sm:gap-5 min-w-0">
+            {colOrders.map(renderCard)}
+          </div>
+        ))}
       </div>
     );
   };
@@ -400,7 +403,7 @@ export default function App() {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-[#0a0c10] text-stone-300 space-y-3 font-mono">
         <Loader2 className="w-8 h-8 text-amber-500 animate-spin" />
-        <div className="text-xs text-stone-400">Проверка доступа к реестру Города...</div>
+        <div className="text-sm text-stone-400">Проверка доступа к реестру Города...</div>
       </div>
     );
   }
@@ -418,77 +421,72 @@ export default function App() {
         onLogout={handleLogout}
         theme={theme}
         setTheme={setTheme}
-        onOpenComparison={() => setIsComparisonOpen(true)}
         onOpenPdfModal={() => setIsPdfModalOpen(true)}
-        ordersCount={orders.length}
         categoryFilter={categoryFilter}
         setCategoryFilter={setCategoryFilter}
       />
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-8">
+      <main className="flex-1 max-w-[1920px] w-full mx-auto px-4 sm:px-8 py-6 sm:py-9 space-y-9">
         {/* Real-time Status & Control Bar */}
-        <section className="no-print rounded-2xl bg-gradient-to-r from-stone-900 via-stone-900/90 to-amber-950/40 border border-stone-800 p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 shadow-lg">
-          <div className="space-y-1">
-            <div className="flex flex-wrap items-center gap-2.5">
-              <h2 className="font-cinzel text-base sm:text-lg font-bold text-stone-100 flex items-center gap-2">
+        <section className="no-print rounded-2xl bg-gradient-to-r from-stone-900 via-stone-900/90 to-amber-950/40 border border-stone-800 p-5 sm:p-6 flex flex-col lg:flex-row lg:items-center justify-between gap-4 shadow-lg">
+          <div className="space-y-1.5">
+            <div className="flex flex-wrap items-center gap-3">
+              <h2 className="font-cinzel text-lg sm:text-xl font-bold text-stone-100 flex items-center gap-2">
                 АКТИВНЫЙ РЕЕСТР ЗАКАЗОВ
               </h2>
-              <span className="font-mono text-xs px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold">
-                {orders.length} / {MAX_ORDERS_COUNT} СЛОТОВ
-              </span>
-              <span className="flex items-center gap-1.5 text-[11px] font-mono px-2 py-0.5 rounded bg-emerald-950/80 text-emerald-300 border border-emerald-500/30">
+              <span className="flex items-center gap-2 text-xs font-mono px-2.5 py-1 rounded-md bg-emerald-950/80 text-emerald-300 border border-emerald-500/30">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
                 <span>СИНХРОНИЗАЦИЯ: ОНЛАЙН</span>
               </span>
               {isGuest && (
-                <span className="flex items-center gap-1.5 text-[11px] font-mono px-2.5 py-0.5 rounded bg-amber-950/80 text-amber-300 border border-amber-500/40 font-bold">
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                <span className="flex items-center gap-2 text-xs font-mono px-3 py-1 rounded-md bg-amber-950/80 text-amber-300 border border-amber-500/40 font-bold">
+                  <span className="w-2 h-2 rounded-full bg-amber-400"></span>
                   <span>РЕЖИМ ГОСТЯ (ТОЛЬКО ЧТЕНИЕ)</span>
                 </span>
               )}
             </div>
-            <p className="text-xs text-stone-400 font-sans max-w-2xl">
+            <p className="text-xs sm:text-sm text-stone-300/90 font-sans max-w-3xl leading-relaxed">
               Единый реестр контрактов Города. Заказы раскрываются кликом для подробностей. Выполненные и проваленные дела автоматически архивируются внизу.
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2.5">
+          <div className="flex flex-wrap items-center gap-3">
             <button
               onClick={() => {
                 if (isGuest) return;
                 setIsCreateModalOpen(true);
               }}
-              disabled={isGuest || orders.length >= MAX_ORDERS_COUNT}
+              disabled={isGuest}
               title={
                 isGuest
                   ? 'Создание заказов недоступно в гостевом режиме (только чтение)'
-                  : `Создать заказ (${orders.length}/${MAX_ORDERS_COUNT})`
+                  : 'Создать новый заказ в конструкторе'
               }
-              className={`px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-2 shadow-lg font-mono transition-all ${
+              className={`px-5 py-2.5 rounded-xl font-bold text-xs sm:text-sm flex items-center gap-2 shadow-lg font-mono transition-all ${
                 isGuest
                   ? 'bg-stone-800/80 text-stone-500 border border-stone-700/50 cursor-not-allowed opacity-60'
                   : 'bg-amber-500 hover:bg-amber-400 text-stone-950 shadow-amber-950/40 cursor-pointer'
               }`}
             >
               <PlusCircle className={`w-4 h-4 ${isGuest ? 'text-stone-500' : 'text-stone-950'}`} />
-              <span>Создать заказ ({orders.length}/{MAX_ORDERS_COUNT})</span>
+              <span>Создать заказ</span>
             </button>
 
             {/* Global Expand/Collapse Toggle */}
             <button
               onClick={() => setAllExpanded(!allExpanded)}
-              className="px-3.5 py-2 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-200 text-xs font-mono flex items-center gap-1.5 border border-stone-700 transition-colors cursor-pointer"
+              className="px-4 py-2.5 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-100 text-xs sm:text-sm font-mono flex items-center gap-2 border border-stone-700 transition-colors cursor-pointer"
               title={allExpanded ? 'Свернуть все заказы для компактности' : 'Развернуть все заказы'}
             >
               {allExpanded ? (
                 <>
-                  <ChevronUp className="w-3.5 h-3.5 text-amber-400" />
+                  <ChevronUp className="w-4 h-4 text-amber-400" />
                   <span>Свернуть все</span>
                 </>
               ) : (
                 <>
-                  <ChevronDown className="w-3.5 h-3.5 text-amber-400" />
+                  <ChevronDown className="w-4 h-4 text-amber-400" />
                   <span>Развернуть все</span>
                 </>
               )}
@@ -496,20 +494,20 @@ export default function App() {
 
             <button
               onClick={() => setIsPdfModalOpen(true)}
-              className="px-3.5 py-2 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-200 text-xs font-mono flex items-center gap-1.5 border border-stone-700 transition-colors cursor-pointer"
+              className="px-4 py-2.5 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-100 text-xs sm:text-sm font-mono flex items-center gap-2 border border-stone-700 transition-colors cursor-pointer"
               title="Экспорт в PDF (A4) или печать бланков"
             >
-              <FileDown className="w-3.5 h-3.5 text-amber-400" />
+              <FileDown className="w-4 h-4 text-amber-400" />
               <span>Печать / PDF</span>
             </button>
 
             {!isGuest && orders.length > 0 && (
               <button
                 onClick={() => setIsResetModalOpen(true)}
-                className="px-3 py-2 rounded-xl bg-stone-900 hover:bg-red-950/60 text-stone-400 hover:text-red-300 text-xs font-mono flex items-center gap-1.5 border border-stone-800 hover:border-red-800/60 transition-colors cursor-pointer"
+                className="px-3.5 py-2.5 rounded-xl bg-stone-900 hover:bg-red-950/60 text-stone-400 hover:text-red-300 text-xs sm:text-sm font-mono flex items-center gap-2 border border-stone-800 hover:border-red-800/60 transition-colors cursor-pointer"
                 title="Очистить реестр и удалить все контракты"
               >
-                <Trash2 className="w-3.5 h-3.5" />
+                <Trash2 className="w-4 h-4" />
                 <span>Очистить все</span>
               </button>
             )}
@@ -518,29 +516,29 @@ export default function App() {
 
         {/* Filter & Search Bar */}
         {orders.length > 0 && (
-          <section className="no-print flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-stone-950/70 p-3 rounded-xl border border-stone-800/80 text-xs">
+          <section className="no-print flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 bg-stone-950/70 p-3.5 rounded-xl border border-stone-800/80 text-xs sm:text-sm">
             {/* Search */}
-            <div className="relative flex-1 max-w-md">
-              <Search className="w-4 h-4 text-stone-500 absolute left-3 top-2.5" />
+            <div className="relative flex-1 max-w-lg">
+              <Search className="w-4 h-4 text-stone-400 absolute left-3.5 top-3" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Поиск по названию, коду, заказчику или цели..."
-                className="w-full pl-9 pr-3 py-1.5 bg-stone-900/90 border border-stone-800 rounded-lg text-xs text-stone-200 placeholder-stone-500 focus:outline-none focus:border-amber-500 font-mono"
+                className="w-full pl-10 pr-3.5 py-2 bg-stone-900/90 border border-stone-800 rounded-lg text-xs sm:text-sm text-stone-100 placeholder-stone-500 focus:outline-none focus:border-amber-500 font-mono"
               />
             </div>
 
             {/* Status filter with ALL types including 'failed' */}
-            <div className="flex items-center gap-2">
-              <span className="text-stone-500 font-mono text-[11px] flex items-center gap-1">
-                <Filter className="w-3 h-3" />
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <span className="text-stone-400 font-mono text-xs flex items-center gap-1.5">
+                <Filter className="w-3.5 h-3.5" />
                 Статус:
               </span>
-              <div className="flex items-center bg-stone-900 rounded-lg p-0.5 border border-stone-800 text-xs font-mono">
+              <div className="flex flex-wrap items-center bg-stone-900 rounded-lg p-1 border border-stone-800 text-xs font-mono gap-0.5">
                 <button
                   onClick={() => setStatusFilter('all')}
-                  className={`px-2 py-1 rounded transition-colors cursor-pointer ${
+                  className={`px-2.5 py-1.5 rounded transition-colors cursor-pointer whitespace-nowrap flex-shrink-0 ${
                     statusFilter === 'all'
                       ? 'bg-stone-800 text-amber-300 font-bold'
                       : 'text-stone-400 hover:text-stone-200'
@@ -550,7 +548,7 @@ export default function App() {
                 </button>
                 <button
                   onClick={() => setStatusFilter('available')}
-                  className={`px-2 py-1 rounded transition-colors cursor-pointer ${
+                  className={`px-2.5 py-1.5 rounded transition-colors cursor-pointer whitespace-nowrap flex-shrink-0 ${
                     statusFilter === 'available'
                       ? 'bg-emerald-950 text-emerald-300 font-bold border border-emerald-500/30'
                       : 'text-stone-400 hover:text-stone-200'
@@ -560,7 +558,7 @@ export default function App() {
                 </button>
                 <button
                   onClick={() => setStatusFilter('in_progress')}
-                  className={`px-2 py-1 rounded transition-colors cursor-pointer ${
+                  className={`px-2.5 py-1.5 rounded transition-colors cursor-pointer whitespace-nowrap flex-shrink-0 ${
                     statusFilter === 'in_progress'
                       ? 'bg-amber-950 text-amber-300 font-bold border border-amber-500/30'
                       : 'text-stone-400 hover:text-stone-200'
@@ -570,7 +568,7 @@ export default function App() {
                 </button>
                 <button
                   onClick={() => setStatusFilter('completed')}
-                  className={`px-2 py-1 rounded transition-colors cursor-pointer ${
+                  className={`px-2.5 py-1.5 rounded transition-colors cursor-pointer whitespace-nowrap flex-shrink-0 ${
                     statusFilter === 'completed'
                       ? 'bg-blue-950 text-blue-300 font-bold border border-blue-500/30'
                       : 'text-stone-400 hover:text-stone-200'
@@ -580,7 +578,7 @@ export default function App() {
                 </button>
                 <button
                   onClick={() => setStatusFilter('failed')}
-                  className={`px-2 py-1 rounded transition-colors cursor-pointer ${
+                  className={`px-2.5 py-1.5 rounded transition-colors cursor-pointer whitespace-nowrap flex-shrink-0 ${
                     statusFilter === 'failed'
                       ? 'bg-red-950 text-red-300 font-bold border border-red-500/40'
                       : 'text-stone-400 hover:text-stone-200'
@@ -594,50 +592,51 @@ export default function App() {
         )}
 
         {/* SECTION 1: ACTIVE ORDERS BOARD */}
-        <section className="space-y-4">
-          <div className="flex items-center justify-between border-b border-stone-800 pb-2.5">
-            <div className="flex items-center gap-2">
+        <section className="space-y-5">
+          <div className="flex items-center justify-between border-b border-stone-800 pb-3">
+            <div className="flex items-center gap-2.5">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
-              <h2 className="font-cinzel text-base font-bold text-stone-100 tracking-wide">
+              <h2 className="font-cinzel text-base sm:text-lg font-bold text-stone-100 tracking-wide">
                 ДЕЙСТВУЮЩИЕ ЛИСТЫ ЗАКАЗА
               </h2>
-              <span className="text-xs font-mono text-stone-400 bg-stone-900 px-2 py-0.5 rounded border border-stone-800">
-                {displayedActiveOrders.length} активных
-              </span>
             </div>
 
-            <span className="text-[11px] font-mono text-stone-500 hidden sm:inline">
+            <span className="text-xs font-mono text-stone-400 hidden sm:inline">
               Доступные к принятию и выполняемые контракты
             </span>
           </div>
 
           {/* Empty / Filtered States or Grid */}
           {orders.length === 0 ? (
-            <div className="p-12 text-center rounded-2xl bg-stone-950/60 border border-stone-800 space-y-4">
-              <div className="w-12 h-12 mx-auto rounded-2xl bg-stone-900 border border-amber-500/30 flex items-center justify-center text-amber-400">
-                <ShieldAlert className="w-6 h-6" />
+            <div className="p-14 text-center rounded-2xl bg-stone-950/60 border border-stone-800 space-y-4">
+              <div className="w-14 h-14 mx-auto rounded-2xl bg-stone-900 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                <ShieldAlert className="w-7 h-7" />
               </div>
               <div>
-                <h3 className="font-cinzel text-base sm:text-lg font-bold text-stone-200">
+                <h3 className="font-cinzel text-lg sm:text-xl font-bold text-stone-200">
                   В реестре нет активных заказов
                 </h3>
-                <p className="text-xs text-stone-400 font-mono-code mt-1 max-w-md mx-auto">
-                  Реестр полностью чист. Вы можете создать новый заказ в конструкторе.
+                <p className="text-sm text-stone-400 font-mono-code mt-1.5 max-w-lg mx-auto">
+                  {isGuest
+                    ? 'Реестр полностью чист. В гостевом режиме доступно только чтение.'
+                    : 'Реестр полностью чист. Вы можете создать новый заказ в конструкторе.'}
                 </p>
               </div>
-              <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
-                <button
-                  onClick={() => setIsCreateModalOpen(true)}
-                  className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold text-xs flex items-center gap-2 shadow-lg shadow-amber-950/40 transition-colors font-mono cursor-pointer"
-                >
-                  <PlusCircle className="w-4 h-4 text-stone-950" />
-                  <span>+ Создать заказ в конструкторе</span>
-                </button>
-              </div>
+              {!isGuest && (
+                <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+                  <button
+                    onClick={() => setIsCreateModalOpen(true)}
+                    className="px-6 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold text-sm flex items-center gap-2 shadow-lg shadow-amber-950/40 transition-colors font-mono cursor-pointer"
+                  >
+                    <PlusCircle className="w-4 h-4 text-stone-950" />
+                    <span>+ Создать заказ в конструкторе</span>
+                  </button>
+                </div>
+              )}
             </div>
           ) : displayedActiveOrders.length === 0 ? (
-            <div className="p-8 text-center rounded-2xl bg-stone-950/40 border border-stone-800/80 space-y-2">
-              <p className="text-xs text-stone-400 font-mono-code">
+            <div className="p-10 text-center rounded-2xl bg-stone-950/40 border border-stone-800/80 space-y-2.5">
+              <p className="text-sm text-stone-300 font-mono-code">
                 {statusFilter === 'completed' || statusFilter === 'failed'
                   ? 'Выбран фильтр архивных дел — просмотрите раздел архива внизу страницы.'
                   : 'Нет активных заказов, соответствующих текущему фильтру или поиску.'}
@@ -645,7 +644,7 @@ export default function App() {
               {statusFilter !== 'all' && (
                 <button
                   onClick={() => setStatusFilter('all')}
-                  className="text-xs text-amber-400 hover:underline font-mono"
+                  className="text-sm text-amber-400 hover:underline font-mono cursor-pointer"
                 >
                   Сбросить фильтр статуса
                 </button>
@@ -657,42 +656,42 @@ export default function App() {
         </section>
 
         {/* SECTION 2: ARCHIVE FOR COMPLETED AND FAILED ORDERS (AT THE BOTTOM) */}
-        <section className="pt-6 border-t-2 border-stone-800/80 space-y-4">
-          <div className="rounded-2xl bg-gradient-to-r from-[#111318] via-stone-900 to-[#171212] border border-stone-800/90 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-md">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-stone-800 border border-stone-700 flex items-center justify-center text-amber-400 flex-shrink-0">
+        <section className="pt-7 border-t-2 border-stone-800/80">
+          <div className="rounded-2xl bg-gradient-to-r from-[#111318] via-stone-900 to-[#171212] border border-stone-800/90 p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 shadow-md">
+            <div className="flex items-center gap-3.5">
+              <div className="w-11 h-11 rounded-xl bg-stone-800 border border-stone-700 flex items-center justify-center text-amber-400 flex-shrink-0">
                 <FolderArchive className="w-5 h-5 text-amber-400" />
               </div>
               <div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="font-cinzel text-base font-bold text-stone-100 flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <h3 className="font-cinzel text-base sm:text-lg font-bold text-stone-100 flex items-center gap-2">
                     АРХИВ ЗАКРЫТЫХ И ПРОВАЛЕННЫХ КОНТРАКТОВ
                   </h3>
-                  <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-stone-800 text-stone-300 border border-stone-700">
+                  <span className="text-xs font-mono px-2.5 py-0.5 rounded bg-stone-800 text-stone-200 border border-stone-700">
                     {archivedOrders.length} дел
                   </span>
                 </div>
-                <p className="text-xs text-stone-400 font-sans mt-0.5">
+                <p className="text-xs sm:text-sm text-stone-400 font-sans mt-1">
                   Архивированные дела Города. При статусе «Провалено» заказ замыливается с красным штампом.
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-2 self-start sm:self-auto">
+            <div className="flex items-center gap-2.5 self-start sm:self-auto flex-wrap">
               {/* Badges for completed vs failed */}
-              <span className="flex items-center gap-1 text-[11px] font-mono px-2 py-1 rounded bg-blue-950/70 text-blue-300 border border-blue-500/30">
-                <CheckCircle2 className="w-3.5 h-3.5 text-blue-400" />
+              <span className="flex items-center gap-1.5 text-xs font-mono px-2.5 py-1.5 rounded-lg bg-blue-950/70 text-blue-300 border border-blue-500/30">
+                <CheckCircle2 className="w-4 h-4 text-blue-400" />
                 <span>Выполнено: {totalCompletedCount}</span>
               </span>
 
-              <span className="flex items-center gap-1 text-[11px] font-mono px-2 py-1 rounded bg-red-950/70 text-red-300 border border-red-500/30">
-                <XCircle className="w-3.5 h-3.5 text-red-400" />
+              <span className="flex items-center gap-1.5 text-xs font-mono px-2.5 py-1.5 rounded-lg bg-red-950/70 text-red-300 border border-red-500/30">
+                <XCircle className="w-4 h-4 text-red-400" />
                 <span>Провалено: {totalFailedCount}</span>
               </span>
 
               <button
                 onClick={() => setIsArchiveOpen(!isArchiveOpen)}
-                className="p-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-300 border border-stone-700 text-xs font-mono flex items-center gap-1 cursor-pointer transition-colors"
+                className="p-2 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-200 border border-stone-700 text-xs font-mono flex items-center gap-1 cursor-pointer transition-colors"
                 title={isArchiveOpen ? 'Свернуть архив' : 'Развернуть архив'}
               >
                 {isArchiveOpen ? <ChevronUp className="w-4 h-4 text-amber-400" /> : <ChevronDown className="w-4 h-4 text-amber-400" />}
@@ -700,38 +699,38 @@ export default function App() {
             </div>
           </div>
 
-          {/* Archived Orders Grid */}
-          {isArchiveOpen && (
-            <div className="animate-in fade-in duration-200">
-              {archivedOrders.length === 0 ? (
-                <div className="p-8 text-center rounded-2xl bg-stone-950/40 border border-stone-800/60 text-stone-500 font-mono text-xs space-y-1">
-                  <Archive className="w-6 h-6 mx-auto text-stone-600 mb-1" />
-                  <p>В архиве пока нет закрытых или проваленных дел.</p>
-                  <p className="text-[11px] text-stone-600">
-                    Когда контракт переводится в статус «Выполнен» или «Провалено», он автоматически переходит в данный архив.
-                  </p>
-                </div>
-              ) : displayedArchivedOrders.length === 0 ? (
-                <div className="p-6 text-center rounded-xl bg-stone-950/40 border border-stone-800 text-stone-400 font-mono text-xs">
-                  Нет архивных дел, соответствующих фильтру.
-                </div>
-              ) : (
-                renderOrdersGrid(displayedArchivedOrders)
-              )}
+          {/* Archived Orders Grid (Smooth bidirectional open & close) */}
+          <div className={`collapse-grid ${isArchiveOpen ? 'is-open' : ''}`} aria-hidden={!isArchiveOpen}>
+            <div className={`collapse-inner ${!isArchiveOpen ? 'pointer-events-none' : ''}`}>
+              <div className="pt-5">
+                {archivedOrders.length === 0 ? (
+                  <div className="p-10 text-center rounded-2xl bg-stone-950/40 border border-stone-800/60 text-stone-400 font-mono text-sm space-y-1.5">
+                    <Archive className="w-7 h-7 mx-auto text-stone-600 mb-1.5" />
+                    <p>В архиве пока нет закрытых или проваленных дел.</p>
+                    <p className="text-xs text-stone-500">
+                      Когда контракт переводится в статус «Выполнен» или «Провалено», он автоматически переходит в данный архив.
+                    </p>
+                  </div>
+                ) : displayedArchivedOrders.length === 0 ? (
+                  <div className="p-8 text-center rounded-xl bg-stone-950/40 border border-stone-800 text-stone-400 font-mono text-sm">
+                    Нет архивных дел, соответствующих фильтру.
+                  </div>
+                ) : (
+                  renderOrdersGrid(displayedArchivedOrders)
+                )}
+              </div>
             </div>
-          )}
+          </div>
         </section>
       </main>
 
       {/* Footer */}
-      <footer className="no-print border-t border-stone-800/80 bg-[#090b0e] py-6 text-center text-xs text-stone-500 font-mono-code">
-        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+      <footer className="no-print border-t border-stone-800/80 bg-[#090b0e] py-7 text-center text-xs sm:text-sm text-stone-400 font-mono-code">
+        <div className="max-w-[1920px] mx-auto px-4 sm:px-8 flex flex-col sm:flex-row items-center justify-between gap-3">
           <div>
             <span>БЮРО КОНТРАКТОВ ГОРОДА • ЗАКРЫТЫЙ РЕЕСТР НАДЗОРА</span>
           </div>
-          <div className="flex items-center gap-4 text-stone-400 text-[11px]">
-            <span>Слоты: {orders.length} / {MAX_ORDERS_COUNT}</span>
-            <span>•</span>
+          <div className="flex items-center gap-4 text-stone-400 text-xs">
             <span>Синхронизация Firestore</span>
             <span>•</span>
             <span>Архив дел</span>
@@ -743,7 +742,6 @@ export default function App() {
       <CreateOrderModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
-        currentCount={orders.length}
         onAddOrder={handleAddOrder}
       />
 
@@ -779,13 +777,6 @@ export default function App() {
         isOpen={isResetModalOpen}
         onClose={() => setIsResetModalOpen(false)}
         onConfirm={handleConfirmReset}
-      />
-
-      <ComparisonModal
-        orders={orders}
-        isOpen={isComparisonOpen}
-        onClose={() => setIsComparisonOpen(false)}
-        onSelectOrder={() => {}}
       />
     </div>
   );

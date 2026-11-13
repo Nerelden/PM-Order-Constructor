@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import {
-  ShieldAlert,
   Lock,
   Mail,
   KeyRound,
@@ -13,6 +12,7 @@ import {
 } from 'lucide-react';
 import { loginWithEmail, loginAsGuest, getAuthErrorMessage } from '../services/firebaseAuth';
 import { LOGO_HAN_PNG, LOGO_HAN_DATA_URL } from '../assets/logo';
+import { RuinaCornerFrame, RuinaDiamondDivider } from './RuinaOrnaments';
 
 interface AuthGateProps {
   onSuccess?: () => void;
@@ -60,85 +60,92 @@ export const AuthGate: React.FC<AuthGateProps> = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-[#0a0c10] text-stone-100 relative overflow-hidden select-none">
-      {/* Background Ambience */}
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-amber-950/20 via-[#0a0c10] to-[#050608] pointer-events-none" />
+    <div className="ruina-stage-bg min-h-screen flex items-center justify-center p-4 text-[#efe6d5] relative overflow-hidden select-none">
+      {/* Subtle Architectural Halo */}
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_rgba(216,180,99,0.06)_0%,transparent_65%)] pointer-events-none" />
 
-      {/* Decorative Roman Numeral watermark */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[260px] font-cinzel font-black opacity-[0.02] text-amber-400 pointer-events-none">
+      {/* Decorative Crest Watermark */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[260px] font-cinzel font-black opacity-[0.03] text-[#d8b463] pointer-events-none">
         H
       </div>
 
-      <div className="relative z-10 w-full max-w-md bg-[#12141a]/95 backdrop-blur-md border border-amber-900/50 rounded-2xl shadow-2xl p-6 sm:p-8 space-y-6">
-        {/* Terminal Header */}
-        <div className="text-center space-y-2">
-          <img
-            src={LOGO_HAN_PNG}
-            alt="Герб Ассоциации Хана"
-            className="w-14 h-14 mx-auto object-contain drop-shadow-lg select-none"
-            onError={(e) => {
-              (e.currentTarget as HTMLImageElement).src = LOGO_HAN_DATA_URL;
-            }}
-          />
+      <div className="modal-panel ruina-panel rounded-sm relative z-10 w-full max-w-lg p-7 sm:p-9 space-y-6">
+        <RuinaCornerFrame size={14} />
+
+        {/* Invitation Gate Header */}
+        <div className="text-center space-y-3 relative z-10">
+          <div className="w-20 h-20 mx-auto rounded-sm bg-[#09070b] border border-[#d8b463]/45 flex items-center justify-center shadow-[0_0_25px_rgba(216,180,99,0.16)] relative">
+            <img
+              src={LOGO_HAN_PNG}
+              alt="Герб Ассоциации Хана"
+              className="w-14 h-14 object-contain drop-shadow-lg select-none"
+              onError={(e) => {
+                (e.currentTarget as HTMLImageElement).src = LOGO_HAN_DATA_URL;
+              }}
+            />
+          </div>
+
           <div>
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-red-950/80 border border-red-500/40 text-[10px] font-mono uppercase text-red-300 font-bold mb-1">
-              <Lock className="w-3 h-3 text-red-400" />
-              <span>ЗАКРЫТЫЙ РЕЕСТР • ДОСТУП ОГРАНИЧЕН</span>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-sm bg-[#2c0d11]/90 border border-[#9f1d22]/70 text-xs font-mono uppercase text-red-200 font-bold mb-2 tracking-wider">
+              <Lock className="w-3.5 h-3.5 text-red-400" />
+              <span>ЗАКРЫТЫЙ РЕЕСТР • ВХОД ПО ПРИГЛАШЕНИЮ</span>
             </div>
-            <h1 className="font-cinzel text-xl sm:text-2xl font-bold tracking-wide text-stone-100">
+            <h1 className="font-cinzel text-2xl sm:text-3xl font-bold tracking-wide text-[#f3ead8]">
               АРХИВ КОНТРАКТОВ ГОРОДА
             </h1>
-            <p className="text-xs text-stone-400 font-mono-code mt-0.5">
-              Вход в единую базу данных заказов и ассоциаций
+            <p className="text-xs sm:text-sm text-[#b3a48e] font-mono-code mt-1">
+              Единый каталог приглашений, свитков и поручений ассоциаций
             </p>
           </div>
         </div>
 
+        <RuinaDiamondDivider />
+
         {/* Error notice */}
         {errorMessage && (
-          <div className="p-3 rounded-xl bg-red-950/50 border border-red-500/40 text-xs text-red-200 flex items-start gap-2.5 animate-in fade-in duration-150">
+          <div className="p-3.5 rounded-sm bg-[#2a0c10]/85 border border-red-600/50 text-xs sm:text-sm text-red-200 flex items-start gap-2.5 animate-in fade-in duration-150">
             <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
             <div className="leading-snug">{errorMessage}</div>
           </div>
         )}
 
         {/* Credentials Form */}
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4 relative z-10">
           <div>
-            <label className="block text-xs font-semibold text-stone-300 uppercase tracking-wider mb-1 font-mono">
+            <label className="block text-xs font-semibold text-[#d8b463] uppercase tracking-wider mb-1.5 font-mono">
               Электронная почта (Email)
             </label>
             <div className="relative">
-              <Mail className="w-4 h-4 text-stone-500 absolute left-3 top-3" />
+              <Mail className="w-4 h-4 text-[#8c7b63] absolute left-3.5 top-3.5" />
               <input
                 type="email"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="fixer@city-association.org"
-                className="w-full pl-9 pr-3 py-2.5 bg-stone-900 border border-stone-700 rounded-xl text-sm text-stone-100 placeholder-stone-600 focus:outline-none focus:border-amber-500 font-mono"
+                className="w-full pl-10 pr-3.5 py-2.5 bg-[#09070b] border border-[#d8b463]/30 rounded-sm text-sm text-[#efe6d5] placeholder-[#6e6150] focus:outline-none focus:border-[#d8b463] font-mono"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-stone-300 uppercase tracking-wider mb-1 font-mono">
+            <label className="block text-xs font-semibold text-[#d8b463] uppercase tracking-wider mb-1.5 font-mono">
               Пароль
             </label>
             <div className="relative">
-              <KeyRound className="w-4 h-4 text-stone-500 absolute left-3 top-3" />
+              <KeyRound className="w-4 h-4 text-[#8c7b63] absolute left-3.5 top-3.5" />
               <input
                 type={showPassword ? 'text' : 'password'}
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full pl-9 pr-10 py-2.5 bg-stone-900 border border-stone-700 rounded-xl text-sm text-stone-100 placeholder-stone-600 focus:outline-none focus:border-amber-500 font-mono"
+                className="w-full pl-10 pr-10 py-2.5 bg-[#09070b] border border-[#d8b463]/30 rounded-sm text-sm text-[#efe6d5] placeholder-[#6e6150] focus:outline-none focus:border-[#d8b463] font-mono"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-3 text-stone-500 hover:text-stone-300"
+                className="absolute right-3.5 top-3.5 text-[#8c7b63] hover:text-[#f0d284] cursor-pointer"
                 title={showPassword ? 'Скрыть пароль' : 'Показать пароль'}
               >
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -149,7 +156,7 @@ export const AuthGate: React.FC<AuthGateProps> = () => {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-stone-950 font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-amber-950/50 transition-all font-mono"
+            className="ruina-btn-gold w-full py-3 rounded-sm disabled:opacity-50 font-bold text-xs sm:text-sm uppercase tracking-wider flex items-center justify-center gap-2 font-mono cursor-pointer"
           >
             {isLoading ? (
               <>
@@ -165,31 +172,25 @@ export const AuthGate: React.FC<AuthGateProps> = () => {
           </button>
         </form>
 
-        <div className="relative flex items-center justify-center pt-1">
-          <div className="border-t border-stone-800 w-full" />
-          <span className="bg-[#12141a] px-3 text-[10px] font-mono text-stone-500 uppercase tracking-widest">
-            или
-          </span>
-          <div className="border-t border-stone-800 w-full" />
-        </div>
+        <RuinaDiamondDivider label="или" />
 
         <button
           type="button"
           onClick={handleGuestLogin}
           disabled={isLoading}
-          className="w-full py-2.5 rounded-xl bg-stone-900/90 hover:bg-stone-800 border border-stone-700 hover:border-amber-500/60 text-stone-300 hover:text-white font-mono text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md"
+          className="ruina-btn-dark w-full py-3 rounded-sm font-mono text-xs sm:text-sm flex items-center justify-center gap-2 cursor-pointer"
         >
-          <UserCheck className="w-4 h-4 text-amber-400" />
+          <UserCheck className="w-4 h-4 text-[#d8b463]" />
           <span>Войти как гость (Режим чтения)</span>
         </button>
 
-        <p className="text-[11px] text-center text-stone-400 font-mono leading-relaxed">
+        <p className="text-xs text-center text-[#b3a48e] font-mono leading-relaxed">
           Гостевой режим позволяет просматривать, разворачивать и печатать бланки без прав создания, изменения и удаления заказов.
         </p>
 
-        <div className="border-t border-stone-800/80 pt-4 text-center text-[11px] font-mono text-stone-500 space-y-1">
+        <div className="border-t border-[#d8b463]/20 pt-4 text-center text-xs font-mono text-[#8c7b63] space-y-1">
           <div>Доступ к изменению разрешен только зарегистрированным сотрудникам</div>
-          <div className="text-[10px] text-stone-600">Синхронизация Firestore • Архив Ассоциации Хана</div>
+          <div className="text-[11px] text-[#726451]">Синхронизация Firestore • Архив Ассоциации Хана</div>
         </div>
       </div>
     </div>

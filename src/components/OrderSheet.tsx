@@ -24,7 +24,10 @@ import {
   ChevronDown,
   ChevronUp,
   XCircle,
-  RotateCcw
+  RotateCcw,
+  ListChecks,
+  Users,
+  User
 } from 'lucide-react';
 import { OrderContract, VisualTheme, getOrderRgb } from '../types';
 import { LOGO_HAN_PNG, LOGO_HAN_DATA_URL } from '../assets/logo';
@@ -58,10 +61,17 @@ export const OrderSheet: React.FC<OrderSheetProps> = ({
 }) => {
   const [copied, setCopied] = useState(false);
   const [isExpanded, setIsExpanded] = useState<boolean>(forceExpanded ?? false);
+  const copyTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     setIsExpanded(forceExpanded ?? false);
   }, [forceExpanded]);
+
+  useEffect(() => {
+    return () => {
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+    };
+  }, []);
 
   // Compute dynamic RGB color
   const rgb = getOrderRgb(order);
@@ -73,11 +83,20 @@ export const OrderSheet: React.FC<OrderSheetProps> = ({
   const isFailed = order.status === 'failed';
   const hasBonus = Boolean(order.rewardBonus && order.rewardBonus.trim().length > 0);
   const hasDirectives = Boolean(order.tacticalNotes && order.tacticalNotes.length > 0);
+  const conditionsList = (order.conditions || []).filter((c) => c.trim().length > 0);
+  const threatsList = (order.threats || []).filter((t) => t.trim().length > 0);
+  const recipientLabel =
+    order.rewardRecipient === 'operator'
+      ? 'Только оператору'
+      : order.rewardRecipient === 'all'
+      ? 'Всем'
+      : null;
 
   const getCategoryIcon = () => {
     if (order.watermarkUrl) {
       return (
         <img
+          key={order.watermarkUrl}
           src={order.watermarkUrl}
           alt=""
           className="w-7 h-7 object-contain rounded"
@@ -135,58 +154,98 @@ export const OrderSheet: React.FC<OrderSheetProps> = ({
     }
   };
 
-  const copyFullText = () => {
-    const textToCopy = `ОФИЦИАЛЬНЫЙ ЛИСТ ЗАКАЗА [${order.code}]
-${order.title}
-Категория: ${getCategoryLabel()}
-Заказчик: ${order.client}
+  const copyFullText = async () => {
+    const recipientText = recipientLabel ? ` (${recipientLabel})` : '';
+    const sections: string[] = [
+      `ОФИЦИАЛЬНЫЙ ЛИСТ ЗАКАЗА [${order.code}]`,
+      order.title,
+      `Категория: ${getCategoryLabel()}`,
+      `Заказчик: ${order.client}`,
+    ];
 
-Цель:
-${order.objective}
-
-Бэкграунд:
-${order.background}
-
-Условия и угрозы:
-${order.threats.map((t) => `• ${t}`).join('\n')}
-
-Подробности:
-${order.details}
-${hasDirectives ? `\nОсобые предписания и директивы:\n${order.tacticalNotes!.map((n) => `• ${n}`).join('\n')}` : ''}
-Вознаграждение: ${order.rewardAhn.toLocaleString('ru-RU')} Ан${hasBonus ? ` (Бонус: ${order.rewardBonus})` : ''}
-Статус: ${
-      order.status === 'available'
-        ? 'ДОСТУПЕН ДЛЯ ПРИНЯТИЯ'
-        : order.status === 'in_progress'
-        ? 'В РАБОТЕ'
-        : order.status === 'completed'
-        ? 'ВЫПОЛНЕН'
-        : 'ПРОВАЛЕНО'
+    if (order.objective?.trim()) {
+      sections.push(`\nЦель:\n${order.objective.trim()}`);
     }
-${order.assignedFixer ? `Исполнитель: ${order.assignedFixer} [${order.assignedOffice || ''}]` : ''}
-${order.signedDate ? `Дата принятия заказа: ${order.signedDate}` : ''}`;
+    if (order.background?.trim()) {
+      sections.push(`\nБэкграунд:\n${order.background.trim()}`);
+    }
+    if (conditionsList.length > 0) {
+      sections.push(`\nУсловия:\n${conditionsList.map((c) => `• ${c}`).join('\n')}`);
+    }
+    if (threatsList.length > 0) {
+      sections.push(`\nУгрозы:\n${threatsList.map((t) => `• ${t}`).join('\n')}`);
+    }
+    if (order.details?.trim()) {
+      sections.push(`\nПодробности:\n${order.details.trim()}`);
+    }
+    if (hasDirectives) {
+      sections.push(`\nОсобые предписания и директивы:\n${order.tacticalNotes!.map((n) => `• ${n}`).join('\n')}`);
+    }
 
-    navigator.clipboard.writeText(textToCopy);
+    sections.push(
+      `\nВознаграждение: ${order.rewardAhn.toLocaleString('ru-RU')} Ан${recipientText}${hasBonus ? ` (Бонус: ${order.rewardBonus})` : ''}`,
+      `Статус: ${
+        order.status === 'available'
+          ? 'ДОСТУПЕН ДЛЯ ПРИНЯТИЯ'
+          : order.status === 'in_progress'
+          ? 'В РАБОТЕ'
+          : order.status === 'completed'
+          ? 'ВЫПОЛНЕН'
+          : 'ПРОВАЛЕНО'
+      }`
+    );
+
+    if (order.assignedFixer) {
+      sections.push(`Исполнитель: ${order.assignedFixer} [${order.assignedOffice || 'Свободный фиксер'}]`);
+    }
+    if (order.signedDate) {
+      sections.push(`Дата принятия заказа: ${order.signedDate}`);
+    }
+
+    const textToCopy = sections.join('\n');
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(textToCopy);
+      } else {
+        throw new Error('Clipboard API unavailable');
+      }
+    } catch {
+      const textarea = document.createElement('textarea');
+      textarea.value = textToCopy;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      try {
+        document.execCommand('copy');
+      } finally {
+        document.body.removeChild(textarea);
+      }
+    }
+
     setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+    copyTimerRef.current = setTimeout(() => setCopied(false), 2000);
   };
 
   return (
     <article
       style={{ borderColor: isFailed ? '#dc2626' : rgbBorderCard }}
-      className={`order-sheet-card relative rounded-2xl transition-all duration-300 overflow-hidden flex flex-col justify-between self-start w-full ${
+      className={`order-sheet-card card-appear relative rounded-2xl transition-all duration-300 hover:-translate-y-0.5 overflow-hidden flex flex-col justify-between self-start w-full ${
         theme === 'parchment'
           ? 'parchment-bg text-stone-200 shadow-2xl border-2'
           : 'terminal-bg text-stone-100 shadow-xl border-2'
       } ${isFailed ? 'ring-1 ring-red-600/40' : ''}`}
     >
-      {/* Dynamic Watermark: URL Image or Roman Numeral */}
+      {/* Dynamic Watermark: URL Image (full color) or Roman Numeral */}
       {order.watermarkUrl ? (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden select-none z-0">
           <img
+            key={order.watermarkUrl}
             src={order.watermarkUrl}
             alt=""
-            className="max-w-[280px] max-h-[280px] object-contain opacity-[0.08] filter grayscale contrast-125 select-none pointer-events-none"
+            className="max-w-[240px] max-h-[240px] object-contain opacity-[0.12] select-none pointer-events-none"
             onError={(e) => {
               (e.currentTarget as HTMLElement).style.display = 'none';
             }}
@@ -210,26 +269,26 @@ ${order.signedDate ? `Дата принятия заказа: ${order.signedDate
         </div>
       )}
 
-      {/* Top Header Tab (No separate first letter square) */}
-      <div className="relative z-10 border-b border-stone-800/80 bg-stone-950/70 px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-2.5">
-        <div className="flex items-center gap-2.5">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="font-mono-code text-xs font-bold tracking-wider text-stone-200">
+      {/* Top Header Tab */}
+      <div className="relative z-10 border-b border-stone-800/80 bg-stone-950/70 px-4 sm:px-5 py-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-mono-code text-xs sm:text-[13px] font-bold tracking-wider text-stone-100 truncate">
                 {order.code}
               </span>
-              <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-stone-800 text-stone-400">
+              <span className="text-xs uppercase font-mono px-2 py-0.5 rounded bg-stone-800 text-stone-300">
                 {getCategoryLabel()}
               </span>
             </div>
-            <div className="text-[11px] text-stone-500 font-mono-code">
+            <div className="text-[11px] sm:text-xs text-stone-400 font-mono-code mt-0.5">
               АРХИВНЫЙ РЕГИСТР НАДЗОРА
             </div>
           </div>
         </div>
 
         {/* Status Pill, Expand Toggle & Action Icons */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <select
             value={order.status}
             disabled={isReadOnly}
@@ -240,7 +299,7 @@ ${order.signedDate ? `Дата принятия заказа: ${order.signedDate
                 e.target.value as 'available' | 'in_progress' | 'completed' | 'failed'
               )
             }
-            className={`text-xs font-mono font-bold px-2 py-1 rounded-md border focus:outline-none transition-colors ${
+            className={`text-xs font-mono font-bold px-2.5 py-1.5 rounded-lg border focus:outline-none transition-colors ${
               isReadOnly ? 'cursor-not-allowed opacity-80' : 'cursor-pointer'
             } ${
               order.status === 'available'
@@ -260,7 +319,7 @@ ${order.signedDate ? `Дата принятия заказа: ${order.signedDate
 
           <button
             onClick={() => setIsExpanded(!isExpanded)}
-            className="p-1.5 rounded-md hover:bg-stone-800 text-stone-400 hover:text-stone-200 transition-colors flex items-center gap-1 text-xs font-mono cursor-pointer"
+            className="p-2 rounded-lg hover:bg-stone-800 text-stone-300 hover:text-stone-100 transition-colors flex items-center gap-1 text-xs font-mono cursor-pointer"
             title={isExpanded ? 'Свернуть подробности' : 'Развернуть подробности'}
           >
             {isExpanded ? <ChevronUp className="w-4 h-4 text-amber-400" /> : <ChevronDown className="w-4 h-4 text-amber-400" />}
@@ -269,10 +328,10 @@ ${order.signedDate ? `Дата принятия заказа: ${order.signedDate
           {!isReadOnly && onDeleteClick && (
             <button
               onClick={() => onDeleteClick(order.id)}
-              className="p-1.5 rounded-md hover:bg-red-950/60 text-stone-500 hover:text-red-400 transition-colors cursor-pointer"
+              className="p-2 rounded-lg hover:bg-red-950/60 text-stone-400 hover:text-red-400 transition-colors cursor-pointer"
               title="Удалить данный лист заказа"
             >
-              <Trash2 className="w-3.5 h-3.5" />
+              <Trash2 className="w-4 h-4" />
             </button>
           )}
         </div>
@@ -280,55 +339,73 @@ ${order.signedDate ? `Дата принятия заказа: ${order.signedDate
 
       {/* Main Sheet Body (Blurred if failed) */}
       <div
-        className={`relative z-10 p-5 sm:p-6 space-y-4 flex-1 transition-all ${
+        className={`relative z-10 p-4 sm:p-5 flex-1 transition-all ${
           isFailed ? 'filter blur-[2px] grayscale-[75%] opacity-60 select-none' : ''
         }`}
       >
         {/* Compact Summary View: always visible */}
-        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 border-b border-stone-800/80 pb-4">
-          <div className="space-y-1.5 flex-1">
-            <div className="flex items-center gap-2 text-xs font-mono-code text-stone-400">
-              <span className="uppercase tracking-widest text-[11px]">
+        <div className="flex flex-col gap-3.5 border-b border-stone-800/80 pb-4">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 text-xs font-mono-code text-stone-400 flex-wrap">
+              <span className="uppercase tracking-widest text-[11px] sm:text-xs">
                 ЛИСТ ЗАКАЗА
               </span>
               <span>•</span>
-              <span className="text-stone-300 flex items-center gap-1">
-                <MapPin className="w-3 h-3 text-stone-500" />
-                {order.location}
+              <span className="text-stone-200 flex items-center gap-1 truncate">
+                <MapPin className="w-3.5 h-3.5 text-stone-400 flex-shrink-0" />
+                <span className="truncate">{order.location}</span>
               </span>
             </div>
-            <h2 className="font-serif-header text-lg sm:text-xl font-bold tracking-tight text-stone-100 leading-snug">
+            <h2 className="font-serif-header text-lg sm:text-xl font-bold tracking-normal text-stone-100 leading-snug break-words">
               {order.title}
             </h2>
-            <div className="flex flex-wrap items-center gap-2 pt-1">
+            <div className="flex flex-wrap items-center gap-2 pt-0.5">
               <span
                 style={{
                   backgroundColor: rgbBgSoft,
                   borderColor: rgbBorderSoft,
                   color: rgbString,
                 }}
-                className="text-[11px] font-mono px-2 py-0.5 rounded border font-semibold"
+                className="text-xs font-mono px-2.5 py-1 rounded-md border font-semibold"
               >
                 {order.client}
               </span>
-              <span className="text-[11px] font-mono px-2 py-0.5 rounded border bg-stone-900 text-stone-300 border-stone-700">
+              <span className="text-xs font-mono px-2.5 py-1 rounded-md border bg-stone-900 text-stone-200 border-stone-700">
                 {order.gradeRequirement}
               </span>
-              <span className="text-[11px] font-mono px-2 py-0.5 rounded border bg-stone-900 text-stone-400 border-stone-800">
+              <span className="text-xs font-mono px-2.5 py-1 rounded-md border bg-stone-900 text-stone-300 border-stone-800">
                 {order.threatRating}
               </span>
             </div>
           </div>
 
           {/* Reward & Insignia Crest */}
-          <div className="flex items-center sm:flex-col sm:items-end justify-between gap-2 flex-shrink-0">
-            <div className="text-left sm:text-right">
-              <span className="text-[10px] font-mono text-stone-400 uppercase block">
-                Вознаграждение:
-              </span>
-              <span className="font-cinzel text-lg sm:text-xl font-black text-amber-300 tracking-wide">
+          <div className="flex items-end justify-between gap-2.5 pt-1">
+            <div className="text-left min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-mono text-stone-400 uppercase">
+                  Вознаграждение:
+                </span>
+                {recipientLabel && (
+                  <span
+                    className={`inline-flex items-center gap-1.5 text-xs font-mono px-2 py-0.5 rounded-md border ${
+                      order.rewardRecipient === 'operator'
+                        ? 'bg-amber-950/60 text-amber-300 border-amber-500/40'
+                        : 'bg-stone-900/90 text-stone-200 border-stone-700'
+                    }`}
+                  >
+                    {order.rewardRecipient === 'operator' ? (
+                      <User className="w-3 h-3 text-amber-400" />
+                    ) : (
+                      <Users className="w-3 h-3 text-stone-400" />
+                    )}
+                    <span>{recipientLabel}</span>
+                  </span>
+                )}
+              </div>
+              <span className="font-cinzel text-xl sm:text-2xl font-black text-amber-300 tracking-wide block leading-tight mt-1">
                 {order.rewardAhn.toLocaleString('ru-RU')}{' '}
-                <span className="text-xs font-mono font-normal text-amber-400/80">Ан</span>
+                <span className="text-sm font-mono font-normal text-amber-400/85">Ан</span>
               </span>
             </div>
 
@@ -337,214 +414,245 @@ ${order.signedDate ? `Дата принятия заказа: ${order.signedDate
                 backgroundColor: rgbBgSoft,
                 borderColor: rgbBorderSoft,
               }}
-              className="px-2.5 py-1.5 rounded-xl border flex items-center gap-2 shadow-inner"
+              className="px-2.5 py-1.5 rounded-xl border flex items-center gap-2 shadow-inner flex-shrink-0"
               title={getCategoryLabel()}
             >
               {getCategoryIcon()}
-              <span className="font-mono-code text-[10px] uppercase font-bold tracking-wider text-stone-300">
+              <span className="font-mono-code text-xs uppercase font-bold tracking-wider text-stone-200">
                 {getCategoryLabel()}
               </span>
             </div>
           </div>
         </div>
 
-        {/* Collapsed quick glance toggle */}
-        {!isExpanded && (
-          <div className="flex items-center justify-between text-xs text-stone-400 font-mono-code pt-1">
-            <div className="truncate max-w-[70%] text-stone-300">
-              {order.objective ? (
-                <>
-                  <span className="text-stone-500 font-bold">Цель: </span>
-                  {order.objective}
-                </>
-              ) : (
-                <span className="text-stone-500 italic">Цель операции не указана</span>
-              )}
+        {/* Collapsed quick glance toggle with smooth bidirectional transition */}
+        <div className={`collapse-grid ${!isExpanded ? 'is-open' : ''}`} aria-hidden={isExpanded}>
+          <div className={`collapse-inner ${isExpanded ? 'pointer-events-none' : ''}`}>
+            <div className="flex items-center justify-between gap-2.5 text-xs sm:text-sm text-stone-300 font-mono-code pt-3.5">
+              <div className="truncate text-stone-200 min-w-0">
+                {order.objective ? (
+                  <>
+                    <span className="text-stone-400 font-bold">Цель: </span>
+                    {order.objective}
+                  </>
+                ) : (
+                  <span className="text-stone-500 italic">Цель операции не указана</span>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsExpanded(true)}
+                className="text-amber-400 hover:text-amber-300 flex items-center gap-1 font-semibold text-xs sm:text-[13px] hover:underline cursor-pointer flex-shrink-0"
+              >
+                <span>Развернуть</span>
+                <ChevronDown className="w-4 h-4" />
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={() => setIsExpanded(true)}
-              className="text-amber-400 hover:text-amber-300 flex items-center gap-1 font-semibold text-[11px] hover:underline cursor-pointer"
-            >
-              <span>Развернуть</span>
-              <ChevronDown className="w-3.5 h-3.5" />
-            </button>
           </div>
-        )}
+        </div>
 
-        {/* EXPANDABLE IN-DEPTH OPERATIONAL DETAILS */}
-        {isExpanded && (
-          <div className="space-y-4 pt-2 animate-in fade-in duration-200">
-            {/* SECTION 1: ЗАКАЗЧИК */}
-            <div className="rounded-xl bg-stone-950/50 border border-stone-800/80 p-3.5 space-y-1">
-              <div className="text-[11px] font-mono-code uppercase font-semibold text-stone-400 flex items-center gap-1.5">
-                <Building2 className="w-3.5 h-3.5 text-stone-400" />
-                <span>Заказчик контракта:</span>
-              </div>
-              <div className="text-sm font-medium text-stone-200">
-                {order.client}
-              </div>
-              {order.associationRole && (
-                <div className="text-xs text-stone-400 font-mono-code">
-                  Профиль деятельности: {order.associationRole}
+        {/* EXPANDABLE IN-DEPTH OPERATIONAL DETAILS WITH SMOOTH OPEN & CLOSE */}
+        <div className={`collapse-grid ${isExpanded ? 'is-open' : ''}`} aria-hidden={!isExpanded}>
+          <div className={`collapse-inner ${!isExpanded ? 'pointer-events-none' : ''}`}>
+            <div className="space-y-4 pt-4">
+              {/* SECTION 1: ЗАКАЗЧИК */}
+              <div className="rounded-xl bg-stone-950/50 border border-stone-800/80 p-3.5 space-y-1.5">
+                <div className="text-xs font-mono-code uppercase font-semibold text-stone-400 flex items-center gap-1.5">
+                  <Building2 className="w-4 h-4 text-stone-400" />
+                  <span>Заказчик контракта:</span>
                 </div>
-              )}
-            </div>
+                <div className="text-sm sm:text-base font-medium text-stone-100">
+                  {order.client}
+                </div>
+                {order.associationRole && (
+                  <div className="text-xs sm:text-[13px] text-stone-400 font-mono-code">
+                    Профиль деятельности: {order.associationRole}
+                  </div>
+                )}
+              </div>
 
-            {/* SECTION 2: ЦЕЛЬ */}
-            {order.objective && (
-              <div className="rounded-xl bg-gradient-to-r from-stone-950 via-stone-900/60 to-stone-950 border border-stone-700/80 p-4 space-y-1.5 shadow-inner">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-mono-code uppercase tracking-wider font-bold text-amber-400 flex items-center gap-1.5">
-                    <Target className="w-3.5 h-3.5 text-amber-400" />
-                    Цель операции:
-                  </span>
-                  <span className="text-[10px] font-mono text-stone-400">ОБЯЗАТЕЛЬНО К ИСПОЛНЕНИЮ</span>
-                </div>
-                <p className="text-sm sm:text-base font-semibold text-stone-100 leading-relaxed pl-1 border-l-2 border-amber-500/80">
-                  {order.objective}
-                </p>
-              </div>
-            )}
-
-            {/* SECTION 3: БЭКГРАУНД */}
-            {order.background && (
-              <div className="space-y-1.5">
-                <div className="text-[11px] font-mono-code uppercase font-semibold text-stone-400 flex items-center gap-1.5">
-                  <FileText className="w-3.5 h-3.5 text-stone-400" />
-                  <span>Бэкграунд и разведывательные данные:</span>
-                </div>
-                <div className="p-3.5 rounded-xl bg-stone-950/40 border border-stone-800/80 text-xs sm:text-sm text-stone-300 leading-relaxed font-sans">
-                  {order.background}
-                </div>
-              </div>
-            )}
-
-            {/* SECTION 4: УСЛОВИЯ И УГРОЗЫ */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-mono-code uppercase font-bold text-red-400 flex items-center gap-1.5">
-                  <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
-                  Условия и угрозы:
-                </span>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-red-950/80 text-red-300 border border-red-500/30">
-                  ПОВЫШЕННАЯ ОПАСНОСТЬ
-                </span>
-              </div>
-              <div className="grid grid-cols-1 gap-2.5">
-                {order.threats.map((threat, idx) => (
-                  <div
-                    key={idx}
-                    className="p-3 rounded-xl bg-red-950/20 border border-red-900/40 flex items-start gap-3 text-xs sm:text-sm text-red-200/95"
-                  >
-                    <span className="w-5 h-5 rounded-full bg-red-900/60 text-red-300 flex items-center justify-center text-[10px] font-bold font-mono flex-shrink-0 mt-0.5">
-                      0{idx + 1}
+              {/* SECTION 2: ЦЕЛЬ */}
+              {order.objective && (
+                <div className="rounded-xl bg-gradient-to-r from-stone-950 via-stone-900/60 to-stone-950 border border-stone-700/80 p-4 space-y-2 shadow-inner">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <span className="text-xs font-mono-code uppercase tracking-wider font-bold text-amber-400 flex items-center gap-1.5">
+                      <Target className="w-4 h-4 text-amber-400" />
+                      Цель операции:
                     </span>
-                    <span className="leading-snug">{threat}</span>
+                    <span className="text-[11px] font-mono text-stone-400">ОБЯЗАТЕЛЬНО К ИСПОЛНЕНИЮ</span>
                   </div>
-                ))}
-              </div>
-            </div>
-
-            {/* SECTION 5: ПОДРОБНОСТИ */}
-            {order.details && (
-              <div className="rounded-xl bg-stone-950/60 border border-stone-800/80 p-3.5 space-y-1">
-                <div className="text-[11px] font-mono-code uppercase font-semibold text-stone-400 flex items-center gap-1.5">
-                  <Clock className="w-3.5 h-3.5 text-stone-400" />
-                  <span>Подробности выполнения:</span>
-                </div>
-                <p className="text-xs sm:text-sm text-stone-300 leading-relaxed">
-                  {order.details}
-                </p>
-              </div>
-            )}
-
-            {/* SECTION 6: ОСОБЫЕ ПРЕДПИСАНИЯ И ДИРЕКТИВЫ */}
-            {hasDirectives && (
-              <div className="space-y-1.5">
-                <div className="text-[10px] font-mono-code uppercase font-semibold text-stone-400">
-                  Особые предписания и директивы:
-                </div>
-                <ul className="space-y-1 text-xs text-stone-400 font-mono-code pl-1">
-                  {order.tacticalNotes!.map((note, idx) => (
-                    <li key={idx} className="flex items-start gap-2">
-                      <span className="text-stone-500">•</span>
-                      <span>{note}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {/* SECTION 7: ВОЗНАГРАЖДЕНИЕ И БОНУС */}
-            {hasBonus && (
-              <div className="p-3 rounded-xl bg-amber-950/20 border border-amber-500/20 flex items-center justify-between text-xs">
-                <span className="font-mono text-stone-400 uppercase">
-                  Дополнительный бонус:
-                </span>
-                <span className="font-semibold text-amber-200">
-                  {order.rewardBonus}
-                </span>
-              </div>
-            )}
-
-            {/* SECTION 8: STAMPS & ACCEPTANCE DATE */}
-            <div className="pt-2 border-t border-stone-800/80 flex flex-wrap items-center justify-between gap-4">
-              {order.assignedFixer ? (
-                <div className="flex flex-wrap items-center gap-3">
-                  <div className="rubber-stamp border-2 border-red-600 text-red-500 bg-red-950/20 font-cinzel text-xs">
-                    [ {order.stampText || 'ПРИНЯТО К ИСПОЛНЕНИЮ'} ]
-                  </div>
-                  <div className="text-xs font-mono-code space-y-0.5">
-                    <div className="text-stone-200 font-bold">
-                      Исполнитель: {order.assignedFixer}
-                    </div>
-                    <div className="text-stone-400 text-[11px] flex items-center gap-2">
-                      <span>Офис: {order.assignedOffice || 'Свободный фиксер'}</span>
-                      {order.signedDate && (
-                        <span className="flex items-center gap-1 text-amber-300 font-semibold bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-500/30">
-                          <Calendar className="w-3 h-3 text-amber-400" />
-                          Дата принятия: {order.signedDate}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  {!isReadOnly && onClearStamp && (
-                    <button
-                      type="button"
-                      onClick={() => onClearStamp(order.id)}
-                      className="px-2 py-1 rounded bg-stone-900 hover:bg-stone-800 text-stone-400 hover:text-red-400 border border-stone-800 hover:border-red-900/60 text-[11px] font-mono flex items-center gap-1 transition-colors cursor-pointer"
-                      title="Снять штамп принятия и очистить назначенного исполнителя"
-                    >
-                      <RotateCcw className="w-3 h-3 text-red-400" />
-                      <span>Снять штамп</span>
-                    </button>
-                  )}
-                </div>
-              ) : (
-                <div className="text-xs text-stone-400 font-mono-code flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                  <span>Лист открыт для регистрации фиксеров</span>
+                  <p className="text-sm leading-relaxed font-semibold text-stone-100 pl-2 border-l-2 border-amber-500/80">
+                    {order.objective}
+                  </p>
                 </div>
               )}
 
-              {/* Barcode & Verification */}
-              <div className="flex items-center gap-2 text-stone-600 font-mono text-[10px] select-none">
-                <span className="tracking-widest">||| | |||| || |||</span>
-                <span>{order.code}</span>
+              {/* SECTION 3: БЭКГРАУНД */}
+              {order.background && (
+                <div className="space-y-2">
+                  <div className="text-xs font-mono-code uppercase font-semibold text-stone-400 flex items-center gap-1.5">
+                    <FileText className="w-4 h-4 text-stone-400" />
+                    <span>Бэкграунд и разведывательные данные:</span>
+                  </div>
+                  <div className="p-3.5 rounded-xl bg-stone-950/40 border border-stone-800/80 text-sm text-stone-200 leading-relaxed font-sans">
+                    {order.background}
+                  </div>
+                </div>
+              )}
+
+              {/* SECTION 4A: УСЛОВИЯ КОНТРАКТА (ONLY IF NON-EMPTY) */}
+              {conditionsList.length > 0 && (
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-mono-code uppercase font-bold text-amber-300 flex items-center gap-1.5">
+                      <ListChecks className="w-4 h-4 text-amber-400" />
+                      Условия контракта:
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 gap-2">
+                    {conditionsList.map((cond, idx) => (
+                      <div
+                        key={idx}
+                        className="p-3 rounded-xl bg-stone-900/70 border border-stone-700/80 flex items-start gap-2.5 text-sm text-stone-100"
+                      >
+                        <span className="w-6 h-6 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 flex items-center justify-center text-xs font-bold font-mono flex-shrink-0 mt-0.5">
+                          {String(idx + 1).padStart(2, '0')}
+                        </span>
+                        <span className="leading-relaxed">{cond}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* SECTION 4B: УГРОЗЫ (RED, ONLY IF NON-EMPTY) */}
+              {threatsList.length > 0 && (
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <span className="text-xs font-mono-code uppercase font-bold text-red-400 flex items-center gap-1.5">
+                      <AlertTriangle className="w-4 h-4 text-red-400" />
+                      Угрозы:
+                    </span>
+                    <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-red-950/80 text-red-300 border border-red-500/40">
+                      ПОВЫШЕННАЯ ОПАСНОСТЬ
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 gap-2">
+                    {threatsList.map((threat, idx) => (
+                      <div
+                        key={idx}
+                        className="p-3 rounded-xl bg-red-950/30 border border-red-800/60 flex items-start gap-2.5 text-sm text-red-100"
+                      >
+                        <span className="w-6 h-6 rounded-full bg-red-900/70 text-red-300 border border-red-500/40 flex items-center justify-center text-xs font-bold font-mono flex-shrink-0 mt-0.5">
+                          {String(idx + 1).padStart(2, '0')}
+                        </span>
+                        <span className="leading-relaxed text-red-100">{threat}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* SECTION 5: ПОДРОБНОСТИ */}
+              {order.details && (
+                <div className="rounded-xl bg-stone-950/60 border border-stone-800/80 p-3.5 space-y-1.5">
+                  <div className="text-xs font-mono-code uppercase font-semibold text-stone-400 flex items-center gap-1.5">
+                    <Clock className="w-4 h-4 text-stone-400" />
+                    <span>Подробности выполнения:</span>
+                  </div>
+                  <p className="text-sm text-stone-200 leading-relaxed">
+                    {order.details}
+                  </p>
+                </div>
+              )}
+
+              {/* SECTION 6: ОСОБЫЕ ПРЕДПИСАНИЯ И ДИРЕКТИВЫ */}
+              {hasDirectives && (
+                <div className="space-y-2">
+                  <div className="text-xs font-mono-code uppercase font-semibold text-stone-400">
+                    Особые предписания и директивы:
+                  </div>
+                  <ul className="space-y-1.5 text-sm text-stone-300 font-mono-code pl-1">
+                    {order.tacticalNotes!.map((note, idx) => (
+                      <li key={idx} className="flex items-start gap-2">
+                        <span className="text-stone-500">•</span>
+                        <span className="leading-relaxed">{note}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* SECTION 7: ВОЗНАГРАЖДЕНИЕ И БОНУС */}
+              {hasBonus && (
+                <div className="p-3.5 rounded-xl bg-amber-950/20 border border-amber-500/20 flex items-center justify-between text-xs sm:text-sm gap-2">
+                  <span className="font-mono text-stone-300 uppercase">
+                    Дополнительный бонус:
+                  </span>
+                  <span className="font-semibold text-amber-200">
+                    {order.rewardBonus}
+                  </span>
+                </div>
+              )}
+
+              {/* SECTION 8: STAMPS & ACCEPTANCE DATE */}
+              <div className="pt-3 border-t border-stone-800/80 flex flex-wrap items-center justify-between gap-4">
+                {order.assignedFixer ? (
+                  <div className="flex flex-wrap items-center gap-3">
+                    <div className="rubber-stamp border-2 border-red-600 text-red-500 bg-red-950/20 font-cinzel text-xs sm:text-sm">
+                      [ {order.stampText || 'ПРИНЯТО К ИСПОЛНЕНИЮ'} ]
+                    </div>
+                    <div className="text-xs sm:text-sm font-mono-code space-y-1">
+                      <div className="text-stone-100 font-bold">
+                        Исполнитель: {order.assignedFixer}
+                      </div>
+                      <div className="text-stone-400 text-xs flex items-center gap-2 flex-wrap">
+                        <span>Офис: {order.assignedOffice || 'Свободный фиксер'}</span>
+                        {order.signedDate && (
+                          <span className="flex items-center gap-1 text-amber-300 font-semibold bg-amber-950/60 px-2 py-0.5 rounded border border-amber-500/30">
+                            <Calendar className="w-3.5 h-3.5 text-amber-400" />
+                            Дата принятия: {order.signedDate}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    {!isReadOnly && onClearStamp && (
+                      <button
+                        type="button"
+                        onClick={() => onClearStamp(order.id)}
+                        className="px-2.5 py-1.5 rounded-lg bg-stone-900 hover:bg-stone-800 text-stone-300 hover:text-red-400 border border-stone-800 hover:border-red-900/60 text-xs font-mono flex items-center gap-1.5 transition-colors cursor-pointer"
+                        title="Снять штамп принятия и очистить назначенного исполнителя"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5 text-red-400" />
+                        <span>Снять штамп</span>
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-xs sm:text-sm text-stone-300 font-mono-code flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span>Лист открыт для регистрации фиксеров</span>
+                  </div>
+                )}
+
+                {/* Barcode & Verification */}
+                <div className="flex items-center gap-2 text-stone-500 font-mono text-xs select-none">
+                  <span className="tracking-widest">||| | |||| || |||</span>
+                  <span>{order.code}</span>
+                </div>
               </div>
             </div>
           </div>
-        )}
+        </div>
       </div>
 
       {/* Footer Action Buttons */}
-      <div className="no-print relative z-10 border-t border-stone-800/90 bg-stone-950/80 px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-2.5">
+      <div className="no-print relative z-10 border-t border-stone-800/90 bg-stone-950/80 px-4 sm:px-5 py-3 flex flex-wrap items-center justify-between gap-2.5">
         <div className="flex items-center gap-2">
           {isReadOnly ? (
             <div className="flex items-center gap-2">
-              <span className="text-[11px] font-mono text-stone-400 bg-stone-900/90 px-2.5 py-1 rounded-md border border-stone-800 flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+              <span className="text-xs font-mono text-stone-300 bg-stone-900/90 px-3 py-1.5 rounded-lg border border-stone-800 flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-amber-400"></span>
                 <span>Режим чтения (Гость)</span>
               </span>
             </div>
@@ -553,33 +661,33 @@ ${order.signedDate ? `Дата принятия заказа: ${order.signedDate
               {order.status === 'available' ? (
                 <button
                   onClick={() => onSignClick(order)}
-                  className="px-3.5 py-1.5 rounded-lg text-xs font-bold font-mono uppercase tracking-wider flex items-center gap-1.5 bg-amber-500 hover:bg-amber-400 text-stone-950 shadow-md shadow-amber-950/40 transition-all cursor-pointer"
+                  className="px-4 py-2 rounded-lg text-xs sm:text-[13px] font-bold font-mono uppercase tracking-wider flex items-center gap-1.5 bg-amber-500 hover:bg-amber-400 text-stone-950 shadow-md shadow-amber-950/40 transition-all cursor-pointer"
                 >
-                  <PenTool className="w-3.5 h-3.5" />
+                  <PenTool className="w-4 h-4" />
                   <span>Принять заказ</span>
                 </button>
               ) : order.status === 'in_progress' ? (
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-2">
                   <button
                     onClick={() => onStatusChange(order.id, 'completed')}
-                    className="px-3 py-1.5 rounded-lg text-xs font-bold font-mono uppercase tracking-wider flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white transition-all shadow-md cursor-pointer"
+                    className="px-3.5 py-2 rounded-lg text-xs sm:text-[13px] font-bold font-mono uppercase tracking-wider flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white transition-all shadow-md cursor-pointer"
                   >
-                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <CheckCircle2 className="w-4 h-4" />
                     <span>Завершить</span>
                   </button>
                   <button
                     onClick={() => onStatusChange(order.id, 'failed')}
-                    className="px-2.5 py-1.5 rounded-lg text-xs font-bold font-mono uppercase tracking-wider flex items-center gap-1 bg-red-950 hover:bg-red-900 text-red-300 border border-red-700/60 transition-all cursor-pointer"
+                    className="px-3 py-2 rounded-lg text-xs sm:text-[13px] font-bold font-mono uppercase tracking-wider flex items-center gap-1.5 bg-red-950 hover:bg-red-900 text-red-300 border border-red-700/60 transition-all cursor-pointer"
                     title="Отметить как проваленный"
                   >
-                    <XCircle className="w-3.5 h-3.5 text-red-400" />
+                    <XCircle className="w-4 h-4 text-red-400" />
                     <span>Провал</span>
                   </button>
                 </div>
               ) : (
                 <div className="flex flex-wrap items-center gap-2">
                   <div
-                    className={`flex items-center gap-1.5 text-xs font-bold font-mono ${
+                    className={`flex items-center gap-1.5 text-xs sm:text-[13px] font-bold font-mono ${
                       order.status === 'completed' ? 'text-blue-400' : 'text-red-400'
                     }`}
                   >
@@ -595,10 +703,10 @@ ${order.signedDate ? `Дата принятия заказа: ${order.signedDate
                     <button
                       type="button"
                       onClick={() => onUnarchive(order.id)}
-                      className="px-3 py-1.5 rounded-lg text-xs font-bold font-mono uppercase tracking-wider flex items-center gap-1.5 bg-amber-500/15 hover:bg-amber-500 text-amber-300 hover:text-stone-950 border border-amber-500/40 hover:border-amber-400 transition-all cursor-pointer shadow-sm"
+                      className="px-3.5 py-2 rounded-lg text-xs sm:text-[13px] font-bold font-mono uppercase tracking-wider flex items-center gap-1.5 bg-amber-500/15 hover:bg-amber-500 text-amber-300 hover:text-stone-950 border border-amber-500/40 hover:border-amber-400 transition-all cursor-pointer shadow-sm"
                       title="Вытащить контракт из архива в реестр: вернуть в статус «Доступен» без принятого статуса и без штампа"
                     >
-                      <RotateCcw className="w-3.5 h-3.5" />
+                      <RotateCcw className="w-4 h-4" />
                       <span>Вытащить из архива</span>
                     </button>
                   )}
@@ -607,10 +715,10 @@ ${order.signedDate ? `Дата принятия заказа: ${order.signedDate
 
               <button
                 onClick={() => onEditClick(order)}
-                className="p-1.5 rounded-lg hover:bg-stone-800 text-stone-400 hover:text-stone-200 border border-stone-800 text-xs flex items-center gap-1 transition-colors cursor-pointer"
+                className="px-2.5 py-2 rounded-lg hover:bg-stone-800 text-stone-300 hover:text-stone-100 border border-stone-800 text-xs sm:text-[13px] flex items-center gap-1.5 transition-colors cursor-pointer"
                 title="Редактировать параметры контракта"
               >
-                <Edit3 className="w-3.5 h-3.5" />
+                <Edit3 className="w-4 h-4" />
                 <span className="hidden sm:inline">Изменить</span>
               </button>
             </>
@@ -621,16 +729,16 @@ ${order.signedDate ? `Дата принятия заказа: ${order.signedDate
           {/* Quick toggle details */}
           <button
             onClick={() => setIsExpanded(!isExpanded)}
-            className="px-2 py-1.5 rounded-lg hover:bg-stone-800 text-stone-400 hover:text-stone-200 border border-stone-800 text-xs flex items-center gap-1 font-mono transition-colors cursor-pointer"
+            className="px-2.5 py-2 rounded-lg hover:bg-stone-800 text-stone-300 hover:text-stone-100 border border-stone-800 text-xs sm:text-[13px] flex items-center gap-1.5 font-mono transition-colors cursor-pointer"
           >
             {isExpanded ? (
               <>
-                <ChevronUp className="w-3.5 h-3.5 text-amber-400" />
+                <ChevronUp className="w-4 h-4 text-amber-400" />
                 <span>Свернуть</span>
               </>
             ) : (
               <>
-                <ChevronDown className="w-3.5 h-3.5 text-amber-400" />
+                <ChevronDown className="w-4 h-4 text-amber-400" />
                 <span>Детали</span>
               </>
             )}
@@ -638,17 +746,17 @@ ${order.signedDate ? `Дата принятия заказа: ${order.signedDate
 
           <button
             onClick={copyFullText}
-            className="px-2.5 py-1.5 rounded-lg hover:bg-stone-800 text-stone-400 hover:text-stone-200 border border-stone-800 text-xs flex items-center gap-1 transition-colors"
+            className="px-3 py-2 rounded-lg hover:bg-stone-800 text-stone-300 hover:text-stone-100 border border-stone-800 text-xs sm:text-[13px] flex items-center gap-1.5 transition-colors cursor-pointer"
             title="Скопировать официальный текст в буфер обмена"
           >
             {copied ? (
               <>
-                <Check className="w-3.5 h-3.5 text-emerald-400" />
+                <Check className="w-4 h-4 text-emerald-400" />
                 <span className="text-emerald-400">Скопировано</span>
               </>
             ) : (
               <>
-                <Copy className="w-3.5 h-3.5" />
+                <Copy className="w-4 h-4" />
                 <span>Копия</span>
               </>
             )}
@@ -657,19 +765,19 @@ ${order.signedDate ? `Дата принятия заказа: ${order.signedDate
           {onPrintClick ? (
             <button
               onClick={() => onPrintClick(order)}
-              className="px-2.5 py-1.5 rounded-lg hover:bg-stone-800 text-stone-400 hover:text-stone-200 border border-stone-800 text-xs flex items-center gap-1 transition-colors"
+              className="px-3 py-2 rounded-lg hover:bg-stone-800 text-stone-300 hover:text-stone-100 border border-stone-800 text-xs sm:text-[13px] flex items-center gap-1.5 transition-colors cursor-pointer"
               title="Экспорт в PDF / Печать этого бланка"
             >
-              <FileDown className="w-3.5 h-3.5 text-amber-400" />
+              <FileDown className="w-4 h-4 text-amber-400" />
               <span className="hidden sm:inline">PDF</span>
             </button>
           ) : (
             <button
               onClick={() => window.print()}
-              className="p-1.5 rounded-lg hover:bg-stone-800 text-stone-400 hover:text-stone-200 border border-stone-800 text-xs flex items-center gap-1 transition-colors"
+              className="p-2 rounded-lg hover:bg-stone-800 text-stone-300 hover:text-stone-100 border border-stone-800 text-xs flex items-center gap-1 transition-colors cursor-pointer"
               title="Печать данного бланка"
             >
-              <Printer className="w-3.5 h-3.5" />
+              <Printer className="w-4 h-4" />
             </button>
           )}
         </div>

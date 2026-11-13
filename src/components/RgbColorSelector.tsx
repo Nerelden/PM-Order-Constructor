@@ -1,5 +1,5 @@
-import React from 'react';
-import { Palette, RefreshCw } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Palette } from 'lucide-react';
 import { RGBColor, rgbToHex, hexToRgb } from '../types';
 
 interface RgbColorSelectorProps {
@@ -9,6 +9,11 @@ interface RgbColorSelectorProps {
 
 export const RgbColorSelector: React.FC<RgbColorSelectorProps> = ({ color, onChange }) => {
   const hex = rgbToHex(color.r, color.g, color.b);
+  const [hexInput, setHexInput] = useState(hex);
+
+  useEffect(() => {
+    setHexInput(hex);
+  }, [hex]);
 
   const handleRChange = (val: number) => {
     const clamped = Math.max(0, Math.min(255, val));
@@ -29,8 +34,10 @@ export const RgbColorSelector: React.FC<RgbColorSelectorProps> = ({ color, onCha
   };
 
   const handleHexInput = (val: string) => {
-    if (/^#[0-9A-Fa-f]{0,6}$/.test(val) || /^[0-9A-Fa-f]{0,6}$/.test(val)) {
-      const formatted = val.startsWith('#') ? val : `#${val}`;
+    const cleaned = val.trim();
+    if (/^#?[0-9A-Fa-f]{0,6}$/.test(cleaned)) {
+      const formatted = cleaned.startsWith('#') ? cleaned : `#${cleaned}`;
+      setHexInput(formatted);
       if (formatted.length === 7) {
         const rgb = hexToRgb(formatted);
         onChange(rgb, formatted);
@@ -77,7 +84,7 @@ export const RgbColorSelector: React.FC<RgbColorSelectorProps> = ({ color, onCha
       {/* Main RGB Sliders and Inputs */}
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-center">
         {/* Native Color Picker & Hex preview */}
-        <div className="flex items-center gap-2 bg-stone-900 p-2 rounded-lg border border-stone-800">
+        <div className="flex items-center gap-2.5 bg-stone-900 p-2.5 rounded-lg border border-stone-800">
           <input
             type="color"
             value={hex}
@@ -85,23 +92,24 @@ export const RgbColorSelector: React.FC<RgbColorSelectorProps> = ({ color, onCha
             className="w-8 h-8 rounded cursor-pointer bg-transparent border-0 p-0"
             title="Открыть палитру цветов"
           />
-          <div className="flex-1 font-mono text-xs">
-            <span className="text-[10px] text-stone-500 uppercase block">HEX</span>
+          <div className="flex-1 font-mono text-xs sm:text-sm">
+            <span className="text-[11px] text-stone-400 uppercase block">HEX</span>
             <input
               type="text"
-              value={hex}
+              value={hexInput}
               onChange={(e) => handleHexInput(e.target.value)}
-              className="w-full bg-transparent text-stone-200 font-bold focus:outline-none uppercase"
+              onBlur={() => setHexInput(hex)}
+              className="w-full bg-transparent text-stone-100 font-bold focus:outline-none uppercase"
               maxLength={7}
             />
           </div>
         </div>
 
         {/* R (Red) */}
-        <div className="bg-stone-900/90 p-2 rounded-lg border border-stone-800">
-          <div className="flex items-center justify-between text-[11px] font-mono mb-1">
+        <div className="bg-stone-900/90 p-2.5 rounded-lg border border-stone-800">
+          <div className="flex items-center justify-between text-xs font-mono mb-1.5">
             <span className="text-red-400 font-bold">R (Красный)</span>
-            <span className="text-stone-300">{color.r}</span>
+            <span className="text-stone-200">{color.r}</span>
           </div>
           <input
             type="range"
@@ -114,10 +122,10 @@ export const RgbColorSelector: React.FC<RgbColorSelectorProps> = ({ color, onCha
         </div>
 
         {/* G (Green) */}
-        <div className="bg-stone-900/90 p-2 rounded-lg border border-stone-800">
-          <div className="flex items-center justify-between text-[11px] font-mono mb-1">
+        <div className="bg-stone-900/90 p-2.5 rounded-lg border border-stone-800">
+          <div className="flex items-center justify-between text-xs font-mono mb-1.5">
             <span className="text-emerald-400 font-bold">G (Зеленый)</span>
-            <span className="text-stone-300">{color.g}</span>
+            <span className="text-stone-200">{color.g}</span>
           </div>
           <input
             type="range"
@@ -130,10 +138,10 @@ export const RgbColorSelector: React.FC<RgbColorSelectorProps> = ({ color, onCha
         </div>
 
         {/* B (Blue) */}
-        <div className="bg-stone-900/90 p-2 rounded-lg border border-stone-800">
-          <div className="flex items-center justify-between text-[11px] font-mono mb-1">
+        <div className="bg-stone-900/90 p-2.5 rounded-lg border border-stone-800">
+          <div className="flex items-center justify-between text-xs font-mono mb-1.5">
             <span className="text-blue-400 font-bold">B (Синий)</span>
-            <span className="text-stone-300">{color.b}</span>
+            <span className="text-stone-200">{color.b}</span>
           </div>
           <input
             type="range"
@@ -147,8 +155,8 @@ export const RgbColorSelector: React.FC<RgbColorSelectorProps> = ({ color, onCha
       </div>
 
       {/* Quick Swatches bar */}
-      <div className="flex flex-wrap items-center gap-1.5 pt-1">
-        <span className="text-[10px] font-mono text-stone-500 mr-1">Быстрый тон:</span>
+      <div className="flex flex-wrap items-center gap-2 pt-1">
+        <span className="text-xs font-mono text-stone-400 mr-1">Быстрый тон:</span>
         {SWATCHES.map((swatch, i) => (
           <button
             key={i}
@@ -156,13 +164,13 @@ export const RgbColorSelector: React.FC<RgbColorSelectorProps> = ({ color, onCha
             onClick={() =>
               onChange({ r: swatch.r, g: swatch.g, b: swatch.b }, rgbToHex(swatch.r, swatch.g, swatch.b))
             }
-            className="px-2 py-0.5 rounded text-[11px] font-mono flex items-center gap-1.5 bg-stone-900 hover:bg-stone-800 border border-stone-800 transition-colors"
+            className="px-2.5 py-1 rounded-md text-xs font-mono flex items-center gap-1.5 bg-stone-900 hover:bg-stone-800 border border-stone-800 transition-colors cursor-pointer"
           >
             <span
-              className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+              className="w-3 h-3 rounded-full flex-shrink-0"
               style={{ backgroundColor: `rgb(${swatch.r}, ${swatch.g}, ${swatch.b})` }}
             />
-            <span className="text-stone-300">{swatch.label}</span>
+            <span className="text-stone-200">{swatch.label}</span>
           </button>
         ))}
       </div>

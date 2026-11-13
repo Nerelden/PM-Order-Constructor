@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { X, Save, Edit3, Calendar, Link as LinkIcon, Trash2, Plus, Building2, Users2, Briefcase, UserCheck } from 'lucide-react';
-import { OrderContract, RGBColor, rgbToHex, getOrderRgb, ClientCategory } from '../types';
+import React, { useState, useRef } from 'react';
+import { X, Save, Edit3, Calendar, Link as LinkIcon, Trash2, Plus, Building2, Users2, Briefcase, UserCheck, ListChecks, AlertTriangle, Users, User } from 'lucide-react';
+import { OrderContract, RGBColor, rgbToHex, getOrderRgb } from '../types';
 import { RgbColorSelector } from './RgbColorSelector';
+import { useAnimatedVisibility } from '../hooks/useAnimatedVisibility';
 
 interface EditOrderModalProps {
   order: OrderContract | null;
@@ -16,18 +17,30 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
   onClose,
   onSave,
 }) => {
+  const { shouldRender, isClosing } = useAnimatedVisibility(isOpen && !!order, 220);
+  const cachedOrderRef = useRef<OrderContract | null>(order);
+  if (order) cachedOrderRef.current = order;
+  const activeOrder = order || cachedOrderRef.current;
+
   const [formData, setFormData] = useState<OrderContract | null>(order);
   const [colorRgb, setColorRgb] = useState<RGBColor>(order ? getOrderRgb(order) : { r: 217, g: 119, b: 6 });
   const [directivesText, setDirectivesText] = useState<string>('');
+  const [newConditionInput, setNewConditionInput] = useState('');
   const [newThreatInput, setNewThreatInput] = useState('');
   const [rewardAhnInput, setRewardAhnInput] = useState<string>(order ? String(order.rewardAhn ?? 0) : '0');
 
   // Synchronize state when order changes or modal opens
   React.useEffect(() => {
     if (order) {
-      setFormData({ ...order });
+      setFormData({
+        ...order,
+        conditions: order.conditions || [],
+        threats: order.threats || [],
+        rewardRecipient: order.rewardRecipient || 'all',
+      });
       setColorRgb(getOrderRgb(order));
       setDirectivesText((order.tacticalNotes || []).join('\n'));
+      setNewConditionInput('');
       setNewThreatInput('');
       setRewardAhnInput(String(order.rewardAhn ?? 0));
     }
@@ -35,15 +48,32 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
 
   // Escape key handler
   React.useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || isClosing) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
+  }, [isOpen, isClosing, onClose]);
 
-  if (!isOpen || !order || !formData) return null;
+  if (!shouldRender || !activeOrder || !formData) return null;
+
+  const handleAddCondition = () => {
+    if (newConditionInput.trim()) {
+      setFormData((prev) => prev ? ({
+        ...prev,
+        conditions: [...(prev.conditions || []), newConditionInput.trim()],
+      }) : null);
+      setNewConditionInput('');
+    }
+  };
+
+  const handleRemoveCondition = (index: number) => {
+    setFormData((prev) => prev ? ({
+      ...prev,
+      conditions: (prev.conditions || []).filter((_, i) => i !== index),
+    }) : null);
+  };
 
   const handleAddThreat = () => {
     if (newThreatInput.trim()) {
@@ -64,15 +94,16 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isOpen || isClosing) return;
 
     const parsedDirectives = directivesText
       .split('\n')
       .map((d) => d.trim())
       .filter((d) => d.length > 0);
 
-    const finalTitle = formData.title.trim() || order.title;
-    const finalCode = formData.code.trim() || order.code;
-    const finalClient = formData.client.trim() || order.client;
+    const finalTitle = formData.title.trim() || activeOrder.title;
+    const finalCode = formData.code.trim() || activeOrder.code;
+    const finalClient = formData.client.trim() || activeOrder.client;
 
     const updated: OrderContract = {
       ...formData,
@@ -81,11 +112,19 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
       client: finalClient,
       associationName: finalClient,
       associationRole: formData.associationRole?.trim() || '',
+      gradeRequirement: formData.gradeRequirement?.trim() || 'Без ограничений',
+      location: formData.location?.trim() || 'Район Города',
+      objective: formData.objective?.trim() || '',
+      background: formData.background?.trim() || '',
+      details: formData.details?.trim() || '',
+      romanNumeral: formData.romanNumeral?.trim() || '',
       colorRgb,
       colorHex: rgbToHex(colorRgb.r, colorRgb.g, colorRgb.b),
       rewardAhn: Number(rewardAhnInput.replace(/[^\d]/g, '')) || 0,
       rewardBonus: formData.rewardBonus?.trim() || '',
-      threats: formData.threats && formData.threats.length > 0 ? formData.threats : ['Стандартные условия'],
+      rewardRecipient: formData.rewardRecipient || 'all',
+      conditions: formData.conditions || [],
+      threats: formData.threats || [],
       tacticalNotes: parsedDirectives,
       watermarkUrl: formData.watermarkUrl?.trim() || '',
     };
@@ -95,27 +134,35 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="bg-[#14161c] border border-amber-900/50 rounded-2xl max-w-2xl w-full p-5 sm:p-6 shadow-2xl relative text-stone-200 max-h-[90vh] overflow-y-auto">
+    <div
+      className={`fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md ${
+        isClosing ? 'modal-backdrop-exit' : 'modal-backdrop-enter'
+      }`}
+    >
+      <div
+        className={`bg-[#14161c] border border-amber-900/50 rounded-2xl max-w-3xl w-full p-5 sm:p-7 shadow-2xl relative text-stone-200 max-h-[90vh] overflow-y-auto ${
+          isClosing ? 'modal-panel-exit' : 'modal-panel'
+        }`}
+      >
         <button
           onClick={onClose}
           type="button"
           aria-label="Закрыть окно"
-          className="absolute top-4 right-4 z-30 w-8 h-8 flex items-center justify-center rounded-xl bg-stone-900/90 hover:bg-red-950/80 border border-stone-800 hover:border-red-600/50 text-stone-400 hover:text-red-300 transition-all shadow-md cursor-pointer"
+          className="absolute top-4 right-4 z-30 w-9 h-9 flex items-center justify-center rounded-xl bg-stone-900/90 hover:bg-red-950/80 border border-stone-800 hover:border-red-600/50 text-stone-400 hover:text-red-300 transition-all shadow-md cursor-pointer"
         >
           <X className="w-4 h-4" />
         </button>
 
-        <div className="flex items-center gap-3 mb-5">
-          <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
+        <div className="flex items-center gap-3.5 mb-5">
+          <div className="w-11 h-11 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
             <Edit3 className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="font-cinzel text-lg font-bold text-stone-100">
+            <h2 className="font-cinzel text-lg sm:text-xl font-bold text-stone-100">
               Редактирование условий заказа
             </h2>
-            <p className="text-xs text-stone-400 font-mono-code">
-              {order.code} — {order.client || order.title}
+            <p className="text-xs sm:text-sm text-stone-400 font-mono-code">
+              {activeOrder.code} — {activeOrder.client || activeOrder.title}
             </p>
           </div>
         </div>
@@ -268,7 +315,7 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
           {/* Watermark URL & Text */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 rounded-xl bg-stone-950/60 border border-stone-800">
             <div className="sm:col-span-2">
-              <label className="block text-[11px] font-mono text-stone-400 mb-1 flex items-center gap-1">
+              <label className="block text-xs font-mono text-stone-400 mb-1 flex items-center gap-1">
                 <LinkIcon className="w-3 h-3 text-stone-500" />
                 <span>Ссылка на водяной знак (URL):</span>
               </label>
@@ -281,7 +328,7 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
               />
             </div>
             <div>
-              <label className="block text-[11px] font-mono text-stone-400 mb-1">
+              <label className="block text-xs font-mono text-stone-400 mb-1">
                 Символ водяного знака:
               </label>
               <input
@@ -323,7 +370,7 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
                   className="w-full px-3 py-2 bg-stone-900 border border-stone-700 rounded-lg text-sm text-amber-300 placeholder-stone-500 focus:outline-none focus:border-amber-500 font-mono-code font-bold"
                 />
                 <div className="flex flex-wrap items-center gap-1.5 mt-2">
-                  <span className="text-[10px] font-mono text-stone-500">Быстро:</span>
+                  <span className="text-xs font-mono text-stone-500">Быстро:</span>
                   {[50000, 100000, 250000, 500000, 1000000].map((amt) => (
                     <button
                       key={amt}
@@ -332,7 +379,7 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
                         setRewardAhnInput(String(amt));
                         setFormData((prev) => (prev ? { ...prev, rewardAhn: amt } : null));
                       }}
-                      className="px-2 py-0.5 rounded bg-stone-900 hover:bg-stone-800 text-[10px] font-mono text-amber-300/90 border border-stone-800 hover:border-amber-500/50 cursor-pointer"
+                      className="px-2 py-0.5 rounded bg-stone-900 hover:bg-stone-800 text-xs font-mono text-amber-300/90 border border-stone-800 hover:border-amber-500/50 cursor-pointer"
                     >
                       {amt.toLocaleString('ru-RU')} Ан
                     </button>
@@ -351,9 +398,41 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
                   placeholder="Укажите дополнительный бонус (необязательно)"
                   className="w-full px-3 py-2 bg-stone-900 border border-stone-700 rounded-lg text-xs text-stone-200 placeholder-stone-500 focus:outline-none focus:border-amber-500"
                 />
-                <p className="text-[10px] text-stone-500 mt-1 font-mono">
+                <p className="text-xs text-stone-500 mt-1 font-mono">
                   Если бонуса нет, оставьте поле пустым.
                 </p>
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-stone-800/80">
+              <label className="block text-xs font-semibold text-stone-300 uppercase tracking-wider mb-2 font-mono">
+                3. Кому достанется вознаграждение
+              </label>
+              <div className="grid grid-cols-2 gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, rewardRecipient: 'all' })}
+                  className={`p-2 rounded-xl border text-xs font-medium flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                    (formData.rewardRecipient || 'all') === 'all'
+                      ? 'bg-amber-950/50 border-amber-500 text-amber-200 shadow-md'
+                      : 'bg-stone-900 border-stone-800 text-stone-400 hover:text-stone-200'
+                  }`}
+                >
+                  <Users className="w-4 h-4 text-amber-400" />
+                  <span>Всем</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, rewardRecipient: 'operator' })}
+                  className={`p-2 rounded-xl border text-xs font-medium flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                    formData.rewardRecipient === 'operator'
+                      ? 'bg-amber-950/50 border-amber-500 text-amber-200 shadow-md'
+                      : 'bg-stone-900 border-stone-800 text-stone-400 hover:text-stone-200'
+                  }`}
+                >
+                  <User className="w-4 h-4 text-amber-400" />
+                  <span>Только оператору</span>
+                </button>
               </div>
             </div>
           </div>
@@ -450,60 +529,122 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
             />
           </div>
 
-          {/* УСЛОВИЯ И УГРОЗЫ С КНОПКОЙ ДОБАВИТЬ И УДАЛИТЬ */}
-          <div className="space-y-2 p-3.5 rounded-xl bg-stone-950/70 border border-stone-800">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-semibold text-stone-300 uppercase tracking-wider font-mono">
-                Условия и угрозы:
-              </label>
-              <span className="text-[10px] text-stone-500 font-mono">
-                {formData.threats.length} условий
-              </span>
+          {/* РАЗДЕЛЬНЫЕ УСЛОВИЯ И УГРОЗЫ (БЕЗ ЗНАЧЕНИЙ ПО УМОЛЧАНИЮ) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* УСЛОВИЯ КОНТРАКТА */}
+            <div className="space-y-2 p-3.5 rounded-xl bg-stone-950/70 border border-stone-800">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-amber-300 uppercase tracking-wider font-mono flex items-center gap-1.5">
+                  <ListChecks className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Условия контракта:</span>
+                </label>
+                <span className="text-xs text-stone-500 font-mono">
+                  {(formData.conditions || []).length} усл.
+                </span>
+              </div>
+
+              {(formData.conditions || []).length > 0 && (
+                <div className="space-y-1.5">
+                  {(formData.conditions || []).map((cond, idx) => (
+                    <div
+                      key={idx}
+                      className="flex items-center justify-between p-2 rounded-lg bg-stone-900/90 border border-stone-700/80 text-xs text-stone-200"
+                    >
+                      <span className="flex-1 mr-2">{cond}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveCondition(idx)}
+                        className="text-stone-500 hover:text-red-400 p-1 cursor-pointer"
+                        title="Удалить условие"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={newConditionInput}
+                  onChange={(e) => setNewConditionInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddCondition();
+                    }
+                  }}
+                  placeholder="Укажите условие (необязательно)"
+                  className="flex-1 px-3 py-1.5 bg-stone-900 border border-stone-700 rounded-lg text-xs text-stone-200 placeholder-stone-500 focus:outline-none focus:border-amber-500"
+                />
+                <button
+                  type="button"
+                  onClick={handleAddCondition}
+                  className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-stone-950 rounded-lg text-xs font-bold flex items-center gap-1 shadow-md shadow-amber-950/40 transition-colors cursor-pointer flex-shrink-0"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Добавить</span>
+                </button>
+              </div>
             </div>
 
-            {formData.threats.length > 0 && (
-              <div className="space-y-1.5">
-                {formData.threats.map((threat, idx) => (
-                  <div
-                    key={idx}
-                    className="flex items-center justify-between p-2 rounded-lg bg-red-950/20 border border-red-900/40 text-xs text-red-200"
-                  >
-                    <span className="flex-1 mr-2">{threat}</span>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveThreat(idx)}
-                      className="text-stone-500 hover:text-red-400 p-1"
-                      title="Удалить условие"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                ))}
+            {/* УГРОЗЫ (КРАСНЫЕ) */}
+            <div className="space-y-2 p-3.5 rounded-xl bg-red-950/15 border border-red-900/40">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-red-400 uppercase tracking-wider font-mono flex items-center gap-1.5">
+                  <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
+                  <span>Угрозы:</span>
+                </label>
+                <span className="text-xs text-red-400/80 font-mono">
+                  {(formData.threats || []).length} угр.
+                </span>
               </div>
-            )}
 
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                value={newThreatInput}
-                onChange={(e) => setNewThreatInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    handleAddThreat();
-                  }
-                }}
-                placeholder="Укажите условие или угрозу"
-                className="flex-1 px-3 py-1.5 bg-stone-900 border border-stone-700 rounded-lg text-xs text-stone-200 placeholder-stone-500 focus:outline-none focus:border-amber-500"
-              />
-              <button
-                type="button"
-                onClick={handleAddThreat}
-                className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-stone-950 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-md shadow-amber-950/40 transition-colors cursor-pointer flex-shrink-0"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Добавить</span>
-              </button>
+              {(formData.threats || []).length > 0 && (
+                <div className="space-y-1.5">
+                  {(formData.threats || []).map((threat, idx) => (
+                    <div
+                      key={idx}
+                      className="flex items-center justify-between p-2 rounded-lg bg-red-950/30 border border-red-800/60 text-xs text-red-200"
+                    >
+                      <span className="flex-1 mr-2">{threat}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveThreat(idx)}
+                        className="text-red-400/70 hover:text-red-300 p-1 cursor-pointer"
+                        title="Удалить угрозу"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={newThreatInput}
+                  onChange={(e) => setNewThreatInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddThreat();
+                    }
+                  }}
+                  placeholder="Укажите угрозу (необязательно)"
+                  className="flex-1 px-3 py-1.5 bg-stone-900 border border-red-900/50 rounded-lg text-xs text-red-100 placeholder-stone-500 focus:outline-none focus:border-red-500"
+                />
+                <button
+                  type="button"
+                  onClick={handleAddThreat}
+                  className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-md shadow-red-950/40 transition-colors cursor-pointer flex-shrink-0"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Добавить</span>
+                </button>
+              </div>
             </div>
           </div>
 
@@ -538,15 +679,15 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl text-stone-400 hover:text-white text-xs font-medium"
+              className="px-4 py-2.5 rounded-xl text-stone-300 hover:text-white text-xs sm:text-sm font-medium cursor-pointer"
             >
               Отмена
             </button>
             <button
               type="submit"
-              className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-stone-950 font-bold text-xs flex items-center gap-2 shadow-lg transition-colors"
+              className="px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-stone-950 font-bold text-xs sm:text-sm flex items-center gap-2 shadow-lg transition-colors cursor-pointer"
             >
-              <Save className="w-3.5 h-3.5" />
+              <Save className="w-4 h-4" />
               <span>Сохранить изменения</span>
             </button>
           </div>

@@ -11,15 +11,18 @@ import {
   Shuffle,
   Trash2,
   Link as LinkIcon,
-  Image as ImageIcon
+  Image as ImageIcon,
+  ListChecks,
+  Users,
+  User
 } from 'lucide-react';
-import { OrderContract, ClientCategory, RGBColor, rgbToHex, MAX_ORDERS_COUNT } from '../types';
+import { OrderContract, ClientCategory, RGBColor, rgbToHex } from '../types';
 import { RgbColorSelector } from './RgbColorSelector';
+import { useAnimatedVisibility } from '../hooks/useAnimatedVisibility';
 
 interface CreateOrderModalProps {
   isOpen: boolean;
   onClose: () => void;
-  currentCount: number;
   onAddOrder: (newOrder: OrderContract) => void;
 }
 
@@ -28,10 +31,9 @@ const DEFAULT_RGB: RGBColor = { r: 217, g: 119, b: 6 }; // Default warm amber
 export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
   isOpen,
   onClose,
-  currentCount,
   onAddOrder,
 }) => {
-  const isLimitReached = currentCount >= MAX_ORDERS_COUNT;
+  const { shouldRender, isClosing } = useAnimatedVisibility(isOpen, 220);
 
   // Form State
   const [category, setCategory] = useState<ClientCategory>('association');
@@ -42,36 +44,38 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
   const [code, setCode] = useState('');
   const [title, setTitle] = useState('');
   const [client, setClient] = useState('');
-  const [associationName, setAssociationName] = useState('');
   const [associationRole, setAssociationRole] = useState('');
   const [romanNumeral, setRomanNumeral] = useState('');
   const [watermarkUrl, setWatermarkUrl] = useState('');
   const [gradeRequirement, setGradeRequirement] = useState('');
   const [location, setLocation] = useState('');
   const [threatRating, setThreatRating] = useState('Городской Миф (Urban Myth)');
-  const [rewardAhn, setRewardAhn] = useState<string>('100000');
+  const [rewardAhn, setRewardAhn] = useState<string>('');
   const [rewardBonus, setRewardBonus] = useState('');
+  const [rewardRecipient, setRewardRecipient] = useState<'all' | 'operator'>('all');
   const [objective, setObjective] = useState('');
   const [background, setBackground] = useState('');
+  const [conditions, setConditions] = useState<string[]>([]);
   const [threats, setThreats] = useState<string[]>([]);
   const [details, setDetails] = useState('');
   const [tacticalNotes, setTacticalNotes] = useState<string[]>([]);
 
   // Sub-inputs for list additions
+  const [newConditionInput, setNewConditionInput] = useState('');
   const [newThreatInput, setNewThreatInput] = useState('');
   const [newDirectiveInput, setNewDirectiveInput] = useState('');
 
   // Escape key handler
   React.useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || isClosing) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
+  }, [isOpen, isClosing, onClose]);
 
-  if (!isOpen) return null;
+  if (!shouldRender) return null;
 
   // Reset all fields completely
   const handleResetForm = () => {
@@ -81,7 +85,6 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
     setCode('');
     setTitle('');
     setClient('');
-    setAssociationName('');
     setAssociationRole('');
     setRomanNumeral('');
     setWatermarkUrl('');
@@ -90,11 +93,14 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
     setThreatRating('Городской Миф (Urban Myth)');
     setRewardAhn('');
     setRewardBonus('');
+    setRewardRecipient('all');
     setObjective('');
     setBackground('');
+    setConditions([]);
     setThreats([]);
     setDetails('');
     setTacticalNotes([]);
+    setNewConditionInput('');
     setNewThreatInput('');
     setNewDirectiveInput('');
   };
@@ -108,6 +114,17 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
     };
     const randNum = Math.floor(1000 + Math.random() * 9000);
     return `${prefixes[cat]}-${randNum}-REQ`;
+  };
+
+  const handleAddCondition = () => {
+    if (newConditionInput.trim()) {
+      setConditions([...conditions, newConditionInput.trim()]);
+      setNewConditionInput('');
+    }
+  };
+
+  const handleRemoveCondition = (index: number) => {
+    setConditions(conditions.filter((_, i) => i !== index));
   };
 
   const handleAddThreat = () => {
@@ -134,19 +151,22 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (isLimitReached) return;
+    if (!isOpen || isClosing) return;
+
+    const finalTitle = title.trim();
+    const finalClient = client.trim();
+    if (!finalTitle || !finalClient) return;
 
     const generatedId = `order-${Date.now()}`;
     const finalCode = code.trim() || generateRandomCode(category);
-    const finalTitle = title.trim();
 
     const newOrder: OrderContract = {
       id: generatedId,
       code: finalCode,
       title: finalTitle.startsWith('«') ? finalTitle : `«${finalTitle}»`,
-      client: client.trim() || associationName.trim() || 'Заказчик',
+      client: finalClient,
       clientCategory: category,
-      associationName: associationName.trim() || client.trim() || 'Заказчик',
+      associationName: finalClient,
       associationRole: associationRole.trim() || 'Городской заказ',
       associationCode: category,
       romanNumeral: romanNumeral.trim(),
@@ -158,9 +178,11 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
       threatRating,
       rewardAhn: Number(rewardAhn.replace(/[^\d]/g, '')) || 0,
       rewardBonus: rewardBonus.trim(),
+      rewardRecipient,
       objective: objective.trim(),
       background: background.trim(),
-      threats: threats.length > 0 ? threats : ['Стандартные условия'],
+      conditions,
+      threats,
       details: details.trim(),
       tacticalNotes: tacticalNotes.length > 0 ? tacticalNotes : [],
       status: 'available',
@@ -168,75 +190,59 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
     };
 
     onAddOrder(newOrder);
+    handleResetForm();
     onClose();
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="bg-[#12141a] border border-amber-900/50 rounded-2xl max-w-3xl w-full p-5 sm:p-7 shadow-2xl relative text-stone-200 max-h-[92vh] overflow-y-auto">
+    <div
+      className={`fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md ${
+        isClosing ? 'modal-backdrop-exit' : 'modal-backdrop-enter'
+      }`}
+    >
+      <div
+        className={`bg-[#12141a] border border-amber-900/50 rounded-2xl max-w-4xl w-full p-5 sm:p-7 shadow-2xl relative text-stone-200 max-h-[92vh] overflow-y-auto ${
+          isClosing ? 'modal-panel-exit' : 'modal-panel'
+        }`}
+      >
         <button
           onClick={onClose}
           type="button"
           aria-label="Закрыть окно"
-          className="absolute top-4 right-4 z-30 w-8 h-8 flex items-center justify-center rounded-xl bg-stone-900/90 hover:bg-red-950/80 border border-stone-800 hover:border-red-600/50 text-stone-400 hover:text-red-300 transition-all shadow-md cursor-pointer"
+          className="absolute top-4 right-4 z-30 w-9 h-9 flex items-center justify-center rounded-xl bg-stone-900/90 hover:bg-red-950/80 border border-stone-800 hover:border-red-600/50 text-stone-400 hover:text-red-300 transition-all shadow-md cursor-pointer"
         >
           <X className="w-4 h-4" />
         </button>
 
         {/* Modal Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-stone-800 pb-4 mb-5">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
+          <div className="flex items-center gap-3.5">
+            <div className="w-11 h-11 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
               <Plus className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="font-cinzel text-lg font-bold text-stone-100">
+              <h2 className="font-cinzel text-lg sm:text-xl font-bold text-stone-100">
                 Конструктор Листов Заказа
               </h2>
-              <p className="text-xs text-stone-400 font-mono-code">
+              <p className="text-xs sm:text-sm text-stone-400 font-mono-code">
                 Создание нового официального заказа в реестре
               </p>
             </div>
           </div>
 
-          {/* Slots badge & Reset Form button */}
-          <div className="flex items-center gap-2">
+          {/* Reset Form button */}
+          <div className="flex items-center gap-2 pr-10">
             <button
               type="button"
               onClick={handleResetForm}
-              className="px-3 py-1.5 rounded-xl bg-stone-900 hover:bg-stone-800 text-stone-400 hover:text-amber-300 text-xs font-mono flex items-center gap-1.5 border border-stone-800 transition-colors cursor-pointer"
+              className="px-3.5 py-2 rounded-xl bg-stone-900 hover:bg-stone-800 text-stone-300 hover:text-amber-300 text-xs sm:text-[13px] font-mono flex items-center gap-1.5 border border-stone-800 transition-colors cursor-pointer"
               title="Очистить все поля формы"
             >
               <RotateCcw className="w-3.5 h-3.5" />
               <span>Очистить форму</span>
             </button>
-
-            <div className="flex items-center gap-2 bg-stone-900 px-3 py-1.5 rounded-xl border border-stone-800">
-              <span className="text-xs font-mono text-stone-400">Слоты:</span>
-              <span
-                className={`font-mono text-xs font-bold px-2 py-0.5 rounded ${
-                  isLimitReached
-                    ? 'bg-red-950 text-red-300 border border-red-500/40'
-                    : 'bg-emerald-950 text-emerald-300 border border-emerald-500/40'
-                }`}
-              >
-                {currentCount} / {MAX_ORDERS_COUNT}
-              </span>
-            </div>
           </div>
         </div>
-
-        {isLimitReached && (
-          <div className="p-3.5 mb-5 rounded-xl bg-red-950/40 border border-red-500/40 text-xs text-red-200 flex items-start gap-2.5">
-            <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
-            <div>
-              <strong>Достигнут максимальный лимит в {MAX_ORDERS_COUNT} заказов!</strong>
-              <p className="text-red-300/80 mt-0.5">
-                Чтобы создать новый лист, удалите один из существующих заказов на доске.
-              </p>
-            </div>
-          </div>
-        )}
 
         {/* MAIN CONSTRUCTOR FORM */}
         <form onSubmit={handleSubmit} className="space-y-5">
@@ -331,7 +337,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setCode(generateRandomCode(category))}
-                  className="text-[10px] text-amber-400 hover:underline flex items-center gap-0.5 lowercase font-normal"
+                  className="text-xs text-amber-400 hover:underline flex items-center gap-0.5 lowercase font-normal"
                 >
                   <Shuffle className="w-2.5 h-2.5" />
                   автокод
@@ -356,10 +362,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
               <input
                 type="text"
                 value={client}
-                onChange={(e) => {
-                  setClient(e.target.value);
-                  if (!associationName) setAssociationName(e.target.value);
-                }}
+                onChange={(e) => setClient(e.target.value)}
                 required
                 placeholder="Введите наименование заказчика"
                 className="w-full px-3 py-2 bg-stone-900 border border-stone-700 rounded-lg text-xs text-stone-100 placeholder-stone-500 focus:outline-none focus:border-amber-500"
@@ -387,12 +390,12 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
                 <ImageIcon className="w-3.5 h-3.5 text-stone-400" />
                 <span>Водяной знак бланка:</span>
               </span>
-              <span className="text-[10px] text-stone-500 font-mono">Иконка по URL или символ</span>
+              <span className="text-xs text-stone-500 font-mono">Иконка по URL или символ</span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-center">
               <div className="sm:col-span-2">
-                <label className="block text-[11px] font-mono text-stone-400 mb-1 flex items-center gap-1">
+                <label className="block text-xs font-mono text-stone-400 mb-1 flex items-center gap-1">
                   <LinkIcon className="w-3 h-3 text-stone-500" />
                   <span>Ссылка на изображение водяного знака (URL):</span>
                 </label>
@@ -406,7 +409,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-[11px] font-mono text-stone-400 mb-1">
+                <label className="block text-xs font-mono text-stone-400 mb-1">
                   Текстовый символ / Римская цифра:
                 </label>
                 <input
@@ -423,6 +426,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
             {watermarkUrl.trim() && (
               <div className="flex items-center gap-3 p-2 bg-stone-900 rounded-lg border border-stone-800 text-xs">
                 <img
+                  key={watermarkUrl}
                   src={watermarkUrl}
                   alt="Водяной знак"
                   className="w-8 h-8 object-contain rounded bg-stone-950 border border-stone-700"
@@ -430,7 +434,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
                     (e.currentTarget as HTMLElement).style.display = 'none';
                   }}
                 />
-                <span className="text-[11px] font-mono text-stone-400 truncate flex-1">
+                <span className="text-xs font-mono text-stone-400 truncate flex-1">
                   Предпросмотр водяного знака загружен
                 </span>
                 <button
@@ -519,13 +523,13 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
                   className="w-full px-3 py-2 bg-stone-900 border border-stone-700 rounded-lg text-sm text-amber-300 font-mono-code font-bold placeholder-stone-500 focus:outline-none focus:border-amber-500"
                 />
                 <div className="flex flex-wrap items-center gap-1.5 mt-2">
-                  <span className="text-[10px] font-mono text-stone-500">Быстро:</span>
+                  <span className="text-xs font-mono text-stone-500">Быстро:</span>
                   {[50000, 100000, 250000, 500000, 1000000].map((amt) => (
                     <button
                       key={amt}
                       type="button"
                       onClick={() => setRewardAhn(String(amt))}
-                      className="px-2 py-0.5 rounded bg-stone-900 hover:bg-stone-800 text-[10px] font-mono text-amber-200/90 border border-stone-800 hover:border-amber-500/50 transition-colors cursor-pointer"
+                      className="px-2 py-0.5 rounded bg-stone-900 hover:bg-stone-800 text-xs font-mono text-amber-200/90 border border-stone-800 hover:border-amber-500/50 transition-colors cursor-pointer"
                     >
                       {amt.toLocaleString('ru-RU')} Ан
                     </button>
@@ -544,9 +548,42 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
                   placeholder="Укажите дополнительный бонус (необязательно)"
                   className="w-full px-3 py-2 bg-stone-900 border border-stone-700 rounded-lg text-xs text-stone-200 placeholder-stone-500 focus:outline-none focus:border-amber-500"
                 />
-                <span className="text-[10px] text-stone-500 font-mono mt-1 block">
+                <span className="text-xs text-stone-500 font-mono mt-1 block">
                   Если оставить пустым — блок бонуса не будет отображаться в заказе
                 </span>
+              </div>
+            </div>
+
+            {/* Кому достанется вознаграждение */}
+            <div className="pt-2 border-t border-stone-800/80">
+              <label className="block text-xs font-semibold text-stone-300 uppercase tracking-wider mb-2 font-mono">
+                3. Кому достанется вознаграждение
+              </label>
+              <div className="grid grid-cols-2 gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setRewardRecipient('all')}
+                  className={`p-2.5 rounded-xl border text-xs font-medium flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                    rewardRecipient === 'all'
+                      ? 'bg-amber-950/50 border-amber-500 text-amber-200 shadow-md'
+                      : 'bg-stone-900 border-stone-800 text-stone-400 hover:text-stone-200'
+                  }`}
+                >
+                  <Users className="w-4 h-4 text-amber-400" />
+                  <span>Всем</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRewardRecipient('operator')}
+                  className={`p-2.5 rounded-xl border text-xs font-medium flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                    rewardRecipient === 'operator'
+                      ? 'bg-amber-950/50 border-amber-500 text-amber-200 shadow-md'
+                      : 'bg-stone-900 border-stone-800 text-stone-400 hover:text-stone-200'
+                  }`}
+                >
+                  <User className="w-4 h-4 text-amber-400" />
+                  <span>Только оператору</span>
+                </button>
               </div>
             </div>
           </div>
@@ -578,53 +615,118 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
             />
           </div>
 
-          {/* Threats (Dynamic list) */}
-          <div className="space-y-2">
-            <label className="block text-xs font-semibold text-stone-300 uppercase tracking-wider font-mono">
-              Условия и угрозы:
-            </label>
-            {threats.length > 0 && (
-              <div className="space-y-1.5">
-                {threats.map((threat, idx) => (
-                  <div
-                    key={idx}
-                    className="flex items-center justify-between p-2 rounded-lg bg-red-950/20 border border-red-900/40 text-xs text-red-200"
-                  >
-                    <span className="flex-1 mr-2">{threat}</span>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveThreat(idx)}
-                      className="text-stone-500 hover:text-red-400 p-1"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                ))}
+          {/* Conditions & Threats (Separated Categories, No Defaults) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* УСЛОВИЯ */}
+            <div className="space-y-2 p-3.5 rounded-xl bg-stone-950/70 border border-stone-800">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-amber-300 uppercase tracking-wider font-mono flex items-center gap-1.5">
+                  <ListChecks className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Условия контракта:</span>
+                </label>
+                <span className="text-xs text-stone-500 font-mono">
+                  {conditions.length} усл.
+                </span>
               </div>
-            )}
+              {conditions.length > 0 && (
+                <div className="space-y-1.5">
+                  {conditions.map((cond, idx) => (
+                    <div
+                      key={idx}
+                      className="flex items-center justify-between p-2 rounded-lg bg-stone-900/90 border border-stone-700/80 text-xs text-stone-200"
+                    >
+                      <span className="flex-1 mr-2">{cond}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveCondition(idx)}
+                        className="text-stone-500 hover:text-red-400 p-1 cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
 
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                value={newThreatInput}
-                onChange={(e) => setNewThreatInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    handleAddThreat();
-                  }
-                }}
-                placeholder="Укажите условие или угрозу"
-                className="flex-1 px-3 py-1.5 bg-stone-900 border border-stone-700 rounded-lg text-xs text-stone-200 placeholder-stone-500 focus:outline-none focus:border-amber-500"
-              />
-              <button
-                type="button"
-                onClick={handleAddThreat}
-                className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-stone-950 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-md shadow-amber-950/40 transition-colors cursor-pointer flex-shrink-0"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Добавить</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={newConditionInput}
+                  onChange={(e) => setNewConditionInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddCondition();
+                    }
+                  }}
+                  placeholder="Укажите условие (необязательно)"
+                  className="flex-1 px-3 py-1.5 bg-stone-900 border border-stone-700 rounded-lg text-xs text-stone-200 placeholder-stone-500 focus:outline-none focus:border-amber-500"
+                />
+                <button
+                  type="button"
+                  onClick={handleAddCondition}
+                  className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-stone-950 rounded-lg text-xs font-bold flex items-center gap-1 shadow-md shadow-amber-950/40 transition-colors cursor-pointer flex-shrink-0"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Добавить</span>
+                </button>
+              </div>
+            </div>
+
+            {/* УГРОЗЫ (КРАСНЫЕ) */}
+            <div className="space-y-2 p-3.5 rounded-xl bg-red-950/15 border border-red-900/40">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-red-400 uppercase tracking-wider font-mono flex items-center gap-1.5">
+                  <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
+                  <span>Угрозы:</span>
+                </label>
+                <span className="text-xs text-red-400/80 font-mono">
+                  {threats.length} угр.
+                </span>
+              </div>
+              {threats.length > 0 && (
+                <div className="space-y-1.5">
+                  {threats.map((threat, idx) => (
+                    <div
+                      key={idx}
+                      className="flex items-center justify-between p-2 rounded-lg bg-red-950/30 border border-red-800/60 text-xs text-red-200"
+                    >
+                      <span className="flex-1 mr-2">{threat}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveThreat(idx)}
+                        className="text-red-400/70 hover:text-red-300 p-1 cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={newThreatInput}
+                  onChange={(e) => setNewThreatInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddThreat();
+                    }
+                  }}
+                  placeholder="Укажите угрозу (необязательно)"
+                  className="flex-1 px-3 py-1.5 bg-stone-900 border border-red-900/50 rounded-lg text-xs text-red-100 placeholder-stone-500 focus:outline-none focus:border-red-500"
+                />
+                <button
+                  type="button"
+                  onClick={handleAddThreat}
+                  className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-md shadow-red-950/40 transition-colors cursor-pointer flex-shrink-0"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Добавить</span>
+                </button>
+              </div>
             </div>
           </div>
 
@@ -648,7 +750,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
               <label className="text-xs font-semibold text-stone-300 uppercase tracking-wider font-mono">
                 Особые предписания и директивы:
               </label>
-              <span className="text-[10px] text-stone-500 font-mono">
+              <span className="text-xs text-stone-500 font-mono">
                 {tacticalNotes.length} директив(ы)
               </span>
             </div>
@@ -712,14 +814,13 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 rounded-xl text-stone-400 hover:text-white text-xs font-medium"
+                className="px-4 py-2.5 rounded-xl text-stone-300 hover:text-white text-xs sm:text-sm font-medium cursor-pointer"
               >
                 Отмена
               </button>
               <button
                 type="submit"
-                disabled={isLimitReached}
-                className="px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 disabled:opacity-40 disabled:cursor-not-allowed text-stone-950 font-bold text-xs flex items-center gap-2 shadow-lg shadow-amber-950/40 transition-colors"
+                className="px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-stone-950 font-bold text-xs sm:text-sm flex items-center gap-2 shadow-lg shadow-amber-950/40 transition-colors cursor-pointer"
               >
                 <Plus className="w-4 h-4" />
                 <span>Создать бланк заказа</span>

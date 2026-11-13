@@ -3,6 +3,7 @@ import { X, FileDown, Printer, CheckCircle, Loader2, AlertCircle, FileText, Eye 
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { OrderContract, VisualTheme, getOrderRgb } from '../types';
+import { useAnimatedVisibility } from '../hooks/useAnimatedVisibility';
 
 interface PdfExportModalProps {
   isOpen: boolean;
@@ -16,6 +17,7 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
   onClose,
   orders,
 }) => {
+  const { shouldRender, isClosing } = useAnimatedVisibility(isOpen, 220);
   const [selectedOrderId, setSelectedOrderId] = useState<string>('all');
   const [isGenerating, setIsGenerating] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -25,6 +27,8 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
 
   React.useEffect(() => {
     if (!isOpen) return;
+    setSuccessMsg(null);
+    setErrorMsg(null);
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
@@ -32,7 +36,13 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  if (!isOpen) return null;
+  React.useEffect(() => {
+    if (selectedOrderId !== 'all' && !orders.some((o) => o.id === selectedOrderId)) {
+      setSelectedOrderId('all');
+    }
+  }, [orders, selectedOrderId]);
+
+  if (!shouldRender) return null;
 
   const ordersToExport =
     selectedOrderId === 'all'
@@ -46,10 +56,11 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
     setSuccessMsg(null);
     setErrorMsg(null);
 
+    const safeCode = (ordersToExport[0]?.code || 'Заказ').replace(/[\\/:*?"<>|]+/g, '_');
     const fileName =
       selectedOrderId === 'all'
         ? `Реестр_Контрактов_Города_${Date.now()}.pdf`
-        : `Контракт_${ordersToExport[0]?.code || 'Заказ'}.pdf`;
+        : `Контракт_${safeCode}.pdf`;
 
     let clone: HTMLElement | null = null;
 
@@ -132,6 +143,16 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
     }
   };
 
+  const escapeHtml = (value: string) =>
+    value
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+
+  const formatHtmlMultiline = (value: string) => escapeHtml(value).replace(/\n/g, '<br>');
+
   // Helper: Download self-contained standalone HTML print sheet
   const downloadStandaloneHtml = (downloadName?: string) => {
     const htmlContent = `<!DOCTYPE html>
@@ -159,40 +180,54 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
   <div class="header">
     <div>
       <div class="title">ГОРОДСКОЙ АРХИВ КОНТРАКТОВ // РЕЕСТР НАДЗОРА</div>
-      <div class="meta">Официальная печатная ведомость • Дата формирования: ${new Date().toLocaleString('ru-RU')}</div>
+      <div class="meta">Официальная печатная ведомость • Дата формирования: ${escapeHtml(new Date().toLocaleString('ru-RU'))}</div>
     </div>
     <div class="meta">Класс допуска: LVL 7+</div>
   </div>
   ${ordersToExport
     .map(
-      (o) => `
+      (o) => {
+        const conds = (o.conditions || []).filter((c) => c.trim().length > 0);
+        const thrs = (o.threats || []).filter((t) => t.trim().length > 0);
+        const recip = o.rewardRecipient === 'operator' ? ' (Только оператору)' : o.rewardRecipient === 'all' ? ' (Всем)' : '';
+        const statusLabel =
+          o.status === 'available'
+            ? 'ДОСТУПЕН'
+            : o.status === 'in_progress'
+            ? `В РАБОТЕ (${escapeHtml(o.signedDate || 'Принят')})`
+            : o.status === 'completed'
+            ? 'ВЫПОЛНЕН'
+            : 'ПРОВАЛЕНО';
+        return `
     <div class="order-card">
       <div style="display:flex; justify-content:space-between;">
-        <span class="order-code">${o.code} • ${o.client}</span>
-        <span class="meta">${o.status === 'available' ? 'ДОСТУПЕН' : o.status === 'in_progress' ? 'В РАБОТЕ (' + (o.signedDate || 'Принят') + ')' : 'ВЫПОЛНЕН'}</span>
+        <span class="order-code">${escapeHtml(o.code)} • ${escapeHtml(o.client)}</span>
+        <span class="meta">${statusLabel}</span>
       </div>
-      <div class="order-title">${o.title}</div>
+      <div class="order-title">${escapeHtml(o.title)}</div>
       <div class="grid">
-        <div><span class="label">Заказчик:</span> ${o.client}</div>
-        <div><span class="label">Награда:</span> <strong>${o.rewardAhn.toLocaleString('ru-RU')} Ан</strong>${o.rewardBonus && o.rewardBonus.trim() ? ' (+ ' + o.rewardBonus + ')' : ''}</div>
-        <div><span class="label">Локация:</span> ${o.location}</div>
-        <div><span class="label">Угроза:</span> ${o.threatRating}</div>
+        <div><span class="label">Заказчик:</span> ${escapeHtml(o.client)}</div>
+        <div><span class="label">Награда:</span> <strong>${o.rewardAhn.toLocaleString('ru-RU')} Ан</strong>${recip}${o.rewardBonus && o.rewardBonus.trim() ? ' (+ ' + escapeHtml(o.rewardBonus) + ')' : ''}</div>
+        <div><span class="label">Локация:</span> ${escapeHtml(o.location)}</div>
+        <div><span class="label">Угроза:</span> ${escapeHtml(o.threatRating)}</div>
       </div>
-      ${o.objective ? `<div class="box"><span class="label">Цель операции:</span><br>${o.objective}</div>` : ''}
-      ${o.background ? `<div class="box"><span class="label">Бэкграунд разведки:</span><br>${o.background}</div>` : ''}
-      <div class="box threats"><span class="label" style="color:#991b1b;">Условия и угрозы:</span><br>${o.threats.map((t) => '• ' + t).join('<br>')}</div>
-      ${o.details ? `<div class="box"><span class="label">Подробности:</span><br>${o.details}</div>` : ''}
-      ${o.tacticalNotes && o.tacticalNotes.length > 0 ? `<div class="box"><span class="label">Особые предписания и директивы:</span><br>${o.tacticalNotes.map((n) => '• ' + n).join('<br>')}</div>` : ''}
+      ${o.objective ? `<div class="box"><span class="label">Цель операции:</span><br>${formatHtmlMultiline(o.objective)}</div>` : ''}
+      ${o.background ? `<div class="box"><span class="label">Бэкграунд разведки:</span><br>${formatHtmlMultiline(o.background)}</div>` : ''}
+      ${conds.length > 0 ? `<div class="box"><span class="label">Условия контракта:</span><br>${conds.map((c) => '• ' + escapeHtml(c)).join('<br>')}</div>` : ''}
+      ${thrs.length > 0 ? `<div class="box threats"><span class="label" style="color:#991b1b;">Угрозы:</span><br>${thrs.map((t) => '• ' + escapeHtml(t)).join('<br>')}</div>` : ''}
+      ${o.details ? `<div class="box"><span class="label">Подробности:</span><br>${formatHtmlMultiline(o.details)}</div>` : ''}
+      ${o.tacticalNotes && o.tacticalNotes.length > 0 ? `<div class="box"><span class="label">Особые предписания и директивы:</span><br>${o.tacticalNotes.map((n) => '• ' + escapeHtml(n)).join('<br>')}</div>` : ''}
       ${
         o.assignedFixer
           ? `<div style="margin-top:10px; display:flex; justify-content:space-between; align-items:center;">
-              <span class="stamp">[ ${o.stampText || 'ПРИНЯТО К ИСПОЛНЕНИЮ'} ]</span>
-              <span class="meta">Исполнитель: <strong>${o.assignedFixer}</strong> [${o.assignedOffice || 'Частный фиксер'}] • Дата: <strong>${o.signedDate || 'Зафиксирована'}</strong></span>
+              <span class="stamp">[ ${escapeHtml(o.stampText || 'ПРИНЯТО К ИСПОЛНЕНИЮ')} ]</span>
+              <span class="meta">Исполнитель: <strong>${escapeHtml(o.assignedFixer)}</strong> [${escapeHtml(o.assignedOffice || 'Частный фиксер')}] • Дата: <strong>${escapeHtml(o.signedDate || 'Зафиксирована')}</strong></span>
             </div>`
           : ''
       }
     </div>
-  `
+  `;
+      }
     )
     .join('')}
   <script>
@@ -221,27 +256,35 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="bg-[#12141a] border border-amber-900/50 rounded-2xl max-w-3xl w-full p-5 sm:p-6 shadow-2xl relative text-stone-200 max-h-[92vh] overflow-y-auto">
+    <div
+      className={`fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md ${
+        isClosing ? 'modal-backdrop-exit' : 'modal-backdrop-enter'
+      }`}
+    >
+      <div
+        className={`bg-[#12141a] border border-amber-900/50 rounded-2xl max-w-4xl w-full p-5 sm:p-7 shadow-2xl relative text-stone-200 max-h-[92vh] overflow-y-auto ${
+          isClosing ? 'modal-panel-exit' : 'modal-panel'
+        }`}
+      >
         <button
           onClick={onClose}
           type="button"
           aria-label="Закрыть окно"
-          className="absolute top-4 right-4 z-30 w-8 h-8 flex items-center justify-center rounded-xl bg-stone-900/90 hover:bg-red-950/80 border border-stone-800 hover:border-red-600/50 text-stone-400 hover:text-red-300 transition-all shadow-md cursor-pointer"
+          className="absolute top-4 right-4 z-30 w-9 h-9 flex items-center justify-center rounded-xl bg-stone-900/90 hover:bg-red-950/80 border border-stone-800 hover:border-red-600/50 text-stone-400 hover:text-red-300 transition-all shadow-md cursor-pointer"
         >
           <X className="w-4 h-4" />
         </button>
 
         {/* Modal Header */}
-        <div className="flex items-center gap-3 mb-5 border-b border-stone-800 pb-4">
-          <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
+        <div className="flex items-center gap-3.5 mb-5 border-b border-stone-800 pb-4">
+          <div className="w-11 h-11 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
             <FileDown className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="font-cinzel text-base sm:text-lg font-bold text-stone-100">
+            <h2 className="font-cinzel text-lg sm:text-xl font-bold text-stone-100">
               Экспорт и Печать Заказов в PDF
             </h2>
-            <p className="text-xs text-stone-400 font-mono-code">
+            <p className="text-xs sm:text-sm text-stone-400 font-mono-code">
               Генерация официальных бланков А4 для архива
             </p>
           </div>
@@ -364,6 +407,14 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
                     const rgbStr = `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`;
                     const rgbBorder = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.6)`;
                     const hasBonus = Boolean(order.rewardBonus && order.rewardBonus.trim().length > 0);
+                    const condsList = (order.conditions || []).filter((c) => c.trim().length > 0);
+                    const threatsList = (order.threats || []).filter((t) => t.trim().length > 0);
+                    const recipientText =
+                      order.rewardRecipient === 'operator'
+                        ? 'Только оператору'
+                        : order.rewardRecipient === 'all'
+                        ? 'Всем'
+                        : null;
 
                     return (
                       <div
@@ -373,7 +424,7 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
                       >
                         {/* Watermark in PDF if present */}
                         {order.watermarkUrl && (
-                          <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.06] overflow-hidden">
+                          <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.1] overflow-hidden">
                             <img
                               src={order.watermarkUrl}
                               alt=""
@@ -415,6 +466,11 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
                             <span className="text-amber-300 font-bold">
                               {order.rewardAhn.toLocaleString('ru-RU')} Ан
                             </span>
+                            {recipientText && (
+                              <span className="text-stone-400 text-[10px] ml-1.5">
+                                ({recipientText})
+                              </span>
+                            )}
                             {hasBonus && (
                               <span className="text-amber-200/80 text-[10px] block">
                                 Бонус: {order.rewardBonus}
@@ -451,16 +507,42 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
                           </div>
                         )}
 
-                        <div className="text-xs space-y-1 relative z-10">
-                          <span className="font-mono text-red-400 text-[10px] block font-bold uppercase">
-                            УГРОЗЫ И РИСКИ:
-                          </span>
-                          <ul className="list-disc pl-4 text-red-300/90 text-[11px] space-y-0.5">
-                            {order.threats.map((t, i) => (
-                              <li key={i}>{t}</li>
-                            ))}
-                          </ul>
-                        </div>
+                        {condsList.length > 0 && (
+                          <div className="text-xs space-y-1 relative z-10">
+                            <span className="font-mono text-amber-300 text-[10px] block font-bold uppercase">
+                              УСЛОВИЯ КОНТРАКТА:
+                            </span>
+                            <ul className="list-disc pl-4 text-stone-200 text-[11px] space-y-0.5">
+                              {condsList.map((c, i) => (
+                                <li key={i}>{c}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        {threatsList.length > 0 && (
+                          <div className="text-xs space-y-1 relative z-10">
+                            <span className="font-mono text-red-400 text-[10px] block font-bold uppercase">
+                              УГРОЗЫ:
+                            </span>
+                            <ul className="list-disc pl-4 text-red-300 text-[11px] space-y-0.5">
+                              {threatsList.map((t, i) => (
+                                <li key={i}>{t}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        {order.details && (
+                          <div className="text-xs space-y-1 relative z-10">
+                            <span className="font-mono text-stone-400 text-[10px] block font-bold uppercase">
+                              ПОДРОБНОСТИ ВЫПОЛНЕНИЯ:
+                            </span>
+                            <p className="text-stone-300 text-[11px] leading-relaxed">
+                              {order.details}
+                            </p>
+                          </div>
+                        )}
 
                         {order.tacticalNotes && order.tacticalNotes.length > 0 && (
                           <div className="text-xs space-y-1 relative z-10">
@@ -498,7 +580,7 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
         <div className="flex items-center justify-end gap-3 pt-4 border-t border-stone-800 mt-4">
           <button
             onClick={onClose}
-            className="px-4 py-2 rounded-xl text-stone-400 hover:text-white text-xs font-medium"
+            className="px-5 py-2.5 rounded-xl text-stone-300 hover:text-white text-xs sm:text-sm font-medium cursor-pointer"
           >
             Закрыть
           </button>

@@ -41,8 +41,10 @@ export interface OrderContract {
   threatRating: string;
   rewardAhn: number;
   rewardBonus?: string;
+  rewardRecipient?: 'all' | 'operator';
   objective: string;
   background: string;
+  conditions?: string[];
   threats: string[];
   details: string;
   tacticalNotes?: string[];
@@ -55,8 +57,6 @@ export interface OrderContract {
 }
 
 export type VisualTheme = 'parchment' | 'terminal';
-
-export const MAX_ORDERS_COUNT = 999;
 
 // Helper functions for RGB and Hex color conversions
 export function hexToRgb(hex: string): RGBColor {

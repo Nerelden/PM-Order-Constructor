@@ -52,8 +52,15 @@ const createLocalGuestUser = (): User => {
   } as unknown as User;
 };
 
+const authListeners = new Set<(user: User | null) => void>();
+
+const notifyAuthListeners = (user: User | null) => {
+  authListeners.forEach((cb) => cb(user));
+};
+
 export const subscribeToAuth = (callback: (user: User | null) => void) => {
-  return onAuthStateChanged(auth, (user) => {
+  authListeners.add(callback);
+  const unsubFirebase = onAuthStateChanged(auth, (user) => {
     if (user) {
       if (user.isAnonymous) {
         if (typeof window !== 'undefined') localStorage.setItem(GUEST_SESSION_KEY, 'true');
@@ -70,6 +77,11 @@ export const subscribeToAuth = (callback: (user: User | null) => void) => {
       }
     }
   });
+
+  return () => {
+    authListeners.delete(callback);
+    unsubFirebase();
+  };
 };
 
 export const loginWithEmail = async (email: string, pass: string): Promise<User> => {
@@ -95,13 +107,19 @@ export const loginAsGuest = async (): Promise<User> => {
     return cred.user;
   } catch (err: any) {
     console.warn('Firebase anonymous sign in notice (using local guest session):', err?.message || err);
-    return createLocalGuestUser();
+    const localGuest = createLocalGuestUser();
+    notifyAuthListeners(localGuest);
+    return localGuest;
   }
 };
 
 export const logout = async (): Promise<void> => {
   if (typeof window !== 'undefined') localStorage.removeItem(GUEST_SESSION_KEY);
-  await signOut(auth);
+  try {
+    await signOut(auth);
+  } finally {
+    notifyAuthListeners(null);
+  }
 };
 
 export const getAuthErrorMessage = (err: any): string => {

@@ -69,11 +69,18 @@
         "rewardBonus": {
           "type": "string"
         },
+        "rewardRecipient": {
+          "type": "string",
+          "enum": ["all", "operator"]
+        },
         "objective": {
           "type": "string"
         },
         "background": {
           "type": "string"
+        },
+        "conditions": {
+          "type": "array"
         },
         "threats": {
           "type": "array"

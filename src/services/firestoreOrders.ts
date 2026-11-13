@@ -126,7 +126,9 @@ export const syncOrderToFirestore = async (order: OrderContract) => {
     const rawData = {
       ...order,
       tacticalNotes: Array.isArray(order.tacticalNotes) ? order.tacticalNotes : [],
+      conditions: Array.isArray(order.conditions) ? order.conditions : [],
       threats: Array.isArray(order.threats) ? order.threats : [],
+      rewardRecipient: order.rewardRecipient || 'all',
       updatedAt: Date.now(),
     };
     const sanitized = sanitizeForFirestore(rawData);
@@ -157,13 +159,15 @@ export const clearAllOrdersFromFirestore = async () => {
   try {
     const colRef = collection(db, ORDERS_COLLECTION);
     const snap = await getDocs(colRef);
-    const batch = writeBatch(db);
+    const docs = snap.docs;
+    const CHUNK_SIZE = 450;
 
-    snap.forEach((d) => {
-      batch.delete(d.ref);
-    });
-
-    await batch.commit();
+    for (let i = 0; i < docs.length; i += CHUNK_SIZE) {
+      const batch = writeBatch(db);
+      const chunk = docs.slice(i, i + CHUNK_SIZE);
+      chunk.forEach((d) => batch.delete(d.ref));
+      await batch.commit();
+    }
   } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, ORDERS_COLLECTION);
     throw err;
