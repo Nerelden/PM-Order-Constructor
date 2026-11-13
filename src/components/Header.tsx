@@ -3,16 +3,11 @@ import { User } from 'firebase/auth';
 import {
   Printer,
   Sparkles,
-  ShieldAlert,
   Clock,
   LogOut,
-  User as UserIcon,
-  Building2,
-  Users2,
-  Briefcase,
-  UserCheck
+  User as UserIcon
 } from 'lucide-react';
-import { VisualTheme, ClientCategory } from '../types';
+import { VisualTheme } from '../types';
 import { LOGO_HAN_PNG, LOGO_HAN_DATA_URL } from '../assets/logo';
 import { isGuestUser } from '../services/firebaseAuth';
 
@@ -22,8 +17,6 @@ interface HeaderProps {
   theme: VisualTheme;
   setTheme: (theme: VisualTheme) => void;
   onOpenPdfModal: () => void;
-  categoryFilter: 'all' | ClientCategory;
-  setCategoryFilter: (cat: 'all' | ClientCategory) => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -32,8 +25,6 @@ export const Header: React.FC<HeaderProps> = ({
   theme,
   setTheme,
   onOpenPdfModal,
-  categoryFilter,
-  setCategoryFilter,
 }) => {
   const [currentTime, setCurrentTime] = useState<string>('');
 
@@ -54,7 +45,7 @@ export const Header: React.FC<HeaderProps> = ({
   }, []);
 
   return (
-    <header className="no-print border-b border-amber-900/30 bg-[#0e1117]/95 backdrop-blur-md sticky top-0 z-40 transition-colors">
+    <header className="no-print border-b border-amber-900/30 bg-[#0e1117]/95 relative z-40 transition-colors">
       {/* Top Security Notice Bar */}
       <div className="bg-gradient-to-r from-amber-950/60 via-stone-900/80 to-amber-950/60 border-b border-amber-500/20 px-4 sm:px-6 py-2 text-xs sm:text-[13px] flex flex-wrap items-center justify-between text-amber-200/85 font-mono-code">
         <div className="flex items-center gap-3">
@@ -148,69 +139,6 @@ export const Header: React.FC<HeaderProps> = ({
               </div>
             </div>
           )}
-        </div>
-      </div>
-
-      {/* Category Filter Tabs Bar */}
-      <div className="bg-[#0b0d12] border-t border-stone-800/80 px-4 sm:px-8 py-2.5">
-        <div className="max-w-[1920px] mx-auto flex items-center justify-between gap-3 overflow-x-auto text-xs sm:text-[13px]">
-          <div className="flex items-center gap-2 whitespace-nowrap">
-            <span className="text-stone-400 font-mono text-xs mr-1 hidden sm:inline">Фильтр:</span>
-            <button
-              onClick={() => setCategoryFilter('all')}
-              className={`px-3 py-1.5 rounded-lg font-mono transition-all cursor-pointer flex-shrink-0 whitespace-nowrap ${
-                categoryFilter === 'all'
-                  ? 'bg-amber-600/30 text-amber-200 border border-amber-500/40 font-bold'
-                  : 'text-stone-400 hover:text-stone-200'
-              }`}
-            >
-              Все
-            </button>
-            <button
-              onClick={() => setCategoryFilter('association')}
-              className={`px-3 py-1.5 rounded-lg font-mono flex items-center gap-1.5 transition-all cursor-pointer flex-shrink-0 whitespace-nowrap ${
-                categoryFilter === 'association'
-                  ? 'bg-cyan-950 text-cyan-200 border border-cyan-500/40 font-bold'
-                  : 'text-stone-400 hover:text-stone-200'
-              }`}
-            >
-              <Building2 className="w-3.5 h-3.5 text-cyan-400" />
-              <span>Ассоциации</span>
-            </button>
-            <button
-              onClick={() => setCategoryFilter('syndicate')}
-              className={`px-3 py-1.5 rounded-lg font-mono flex items-center gap-1.5 transition-all cursor-pointer flex-shrink-0 whitespace-nowrap ${
-                categoryFilter === 'syndicate'
-                  ? 'bg-red-950 text-red-200 border border-red-500/40 font-bold'
-                  : 'text-stone-400 hover:text-stone-200'
-              }`}
-            >
-              <Users2 className="w-3.5 h-3.5 text-red-400" />
-              <span>Синдикаты</span>
-            </button>
-            <button
-              onClick={() => setCategoryFilter('office')}
-              className={`px-3 py-1.5 rounded-lg font-mono flex items-center gap-1.5 transition-all cursor-pointer flex-shrink-0 whitespace-nowrap ${
-                categoryFilter === 'office'
-                  ? 'bg-emerald-950 text-emerald-200 border border-emerald-500/40 font-bold'
-                  : 'text-stone-400 hover:text-stone-200'
-              }`}
-            >
-              <Briefcase className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Офисы</span>
-            </button>
-            <button
-              onClick={() => setCategoryFilter('individual')}
-              className={`px-3 py-1.5 rounded-lg font-mono flex items-center gap-1.5 transition-all cursor-pointer flex-shrink-0 whitespace-nowrap ${
-                categoryFilter === 'individual'
-                  ? 'bg-purple-950 text-purple-200 border border-purple-500/40 font-bold'
-                  : 'text-stone-400 hover:text-stone-200'
-              }`}
-            >
-              <UserCheck className="w-3.5 h-3.5 text-purple-400" />
-              <span>Частные</span>
-            </button>
-          </div>
         </div>
       </div>
     </header>

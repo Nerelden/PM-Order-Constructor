@@ -18,7 +18,13 @@ import {
   ChevronUp,
   CheckCircle2,
   XCircle,
-  FolderArchive
+  FolderArchive,
+  Building2,
+  Users2,
+  Briefcase,
+  UserCheck,
+  RotateCcw,
+  Layers
 } from 'lucide-react';
 import { OrderContract, VisualTheme, ClientCategory } from './types';
 import { Header } from './components/Header';
@@ -422,8 +428,6 @@ export default function App() {
         theme={theme}
         setTheme={setTheme}
         onOpenPdfModal={() => setIsPdfModalOpen(true)}
-        categoryFilter={categoryFilter}
-        setCategoryFilter={setCategoryFilter}
       />
 
       {/* Main Content Area */}
@@ -514,78 +518,172 @@ export default function App() {
           </div>
         </section>
 
-        {/* Filter & Search Bar */}
+        {/* Unified Search, Category & Status Filter Bar */}
         {orders.length > 0 && (
-          <section className="no-print flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 bg-stone-950/70 p-3.5 rounded-xl border border-stone-800/80 text-xs sm:text-sm">
-            {/* Search */}
-            <div className="relative flex-1 max-w-lg">
-              <Search className="w-4 h-4 text-stone-400 absolute left-3.5 top-3" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Поиск по названию, коду, заказчику или цели..."
-                className="w-full pl-10 pr-3.5 py-2 bg-stone-900/90 border border-stone-800 rounded-lg text-xs sm:text-sm text-stone-100 placeholder-stone-500 focus:outline-none focus:border-amber-500 font-mono"
-              />
+          <section className="no-print bg-stone-950/75 p-4 sm:p-5 rounded-2xl border border-stone-800/90 space-y-3.5 shadow-md text-xs sm:text-sm">
+            {/* Top row: Search + Reset */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Поиск по названию, коду, заказчику или цели..."
+                  className="w-full pl-10 pr-4 py-2.5 bg-stone-900/90 border border-stone-800 rounded-xl text-xs sm:text-sm text-stone-100 placeholder-stone-500 focus:outline-none focus:border-amber-500 font-mono"
+                />
+              </div>
+
+              {(categoryFilter !== 'all' || statusFilter !== 'all' || searchQuery.trim() !== '') && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCategoryFilter('all');
+                    setStatusFilter('all');
+                    setSearchQuery('');
+                  }}
+                  className="px-3.5 py-2.5 rounded-xl bg-stone-900 hover:bg-stone-800 text-amber-300 border border-amber-500/30 text-xs font-mono flex items-center justify-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap flex-shrink-0"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Сбросить фильтры</span>
+                </button>
+              )}
             </div>
 
-            {/* Status filter with ALL types including 'failed' */}
-            <div className="flex items-center gap-2.5 flex-wrap">
-              <span className="text-stone-400 font-mono text-xs flex items-center gap-1.5">
-                <Filter className="w-3.5 h-3.5" />
-                Статус:
-              </span>
-              <div className="flex flex-wrap items-center bg-stone-900 rounded-lg p-1 border border-stone-800 text-xs font-mono gap-0.5">
-                <button
-                  onClick={() => setStatusFilter('all')}
-                  className={`px-2.5 py-1.5 rounded transition-colors cursor-pointer whitespace-nowrap flex-shrink-0 ${
-                    statusFilter === 'all'
-                      ? 'bg-stone-800 text-amber-300 font-bold'
-                      : 'text-stone-400 hover:text-stone-200'
-                  }`}
-                >
-                  Все
-                </button>
-                <button
-                  onClick={() => setStatusFilter('available')}
-                  className={`px-2.5 py-1.5 rounded transition-colors cursor-pointer whitespace-nowrap flex-shrink-0 ${
-                    statusFilter === 'available'
-                      ? 'bg-emerald-950 text-emerald-300 font-bold border border-emerald-500/30'
-                      : 'text-stone-400 hover:text-stone-200'
-                  }`}
-                >
-                  Доступные
-                </button>
-                <button
-                  onClick={() => setStatusFilter('in_progress')}
-                  className={`px-2.5 py-1.5 rounded transition-colors cursor-pointer whitespace-nowrap flex-shrink-0 ${
-                    statusFilter === 'in_progress'
-                      ? 'bg-amber-950 text-amber-300 font-bold border border-amber-500/30'
-                      : 'text-stone-400 hover:text-stone-200'
-                  }`}
-                >
-                  В работе
-                </button>
-                <button
-                  onClick={() => setStatusFilter('completed')}
-                  className={`px-2.5 py-1.5 rounded transition-colors cursor-pointer whitespace-nowrap flex-shrink-0 ${
-                    statusFilter === 'completed'
-                      ? 'bg-blue-950 text-blue-300 font-bold border border-blue-500/30'
-                      : 'text-stone-400 hover:text-stone-200'
-                  }`}
-                >
-                  Выполненные
-                </button>
-                <button
-                  onClick={() => setStatusFilter('failed')}
-                  className={`px-2.5 py-1.5 rounded transition-colors cursor-pointer whitespace-nowrap flex-shrink-0 ${
-                    statusFilter === 'failed'
-                      ? 'bg-red-950 text-red-300 font-bold border border-red-500/40'
-                      : 'text-stone-400 hover:text-stone-200'
-                  }`}
-                >
-                  Проваленные
-                </button>
+            {/* Bottom row: Category & Status filters */}
+            <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 pt-1 border-t border-stone-800/70">
+              {/* Category filter */}
+              <div className="flex items-center gap-2.5 flex-wrap pt-2 xl:pt-0">
+                <span className="text-stone-400 font-mono text-xs flex items-center gap-1.5 flex-shrink-0">
+                  <Layers className="w-3.5 h-3.5 text-amber-400" />
+                  Категория:
+                </span>
+                <div className="flex flex-wrap items-center bg-stone-900 rounded-xl p-1 border border-stone-800 text-xs font-mono gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setCategoryFilter('all')}
+                    className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer whitespace-nowrap flex-shrink-0 ${
+                      categoryFilter === 'all'
+                        ? 'bg-amber-600/30 text-amber-200 border border-amber-500/40 font-bold'
+                        : 'text-stone-400 hover:text-stone-200 border border-transparent'
+                    }`}
+                  >
+                    Все
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCategoryFilter('association')}
+                    className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap flex-shrink-0 ${
+                      categoryFilter === 'association'
+                        ? 'bg-cyan-950 text-cyan-200 border border-cyan-500/40 font-bold'
+                        : 'text-stone-400 hover:text-stone-200 border border-transparent'
+                    }`}
+                  >
+                    <Building2 className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>Ассоциации</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCategoryFilter('syndicate')}
+                    className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap flex-shrink-0 ${
+                      categoryFilter === 'syndicate'
+                        ? 'bg-red-950 text-red-200 border border-red-500/40 font-bold'
+                        : 'text-stone-400 hover:text-stone-200 border border-transparent'
+                    }`}
+                  >
+                    <Users2 className="w-3.5 h-3.5 text-red-400" />
+                    <span>Синдикаты</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCategoryFilter('office')}
+                    className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap flex-shrink-0 ${
+                      categoryFilter === 'office'
+                        ? 'bg-emerald-950 text-emerald-200 border border-emerald-500/40 font-bold'
+                        : 'text-stone-400 hover:text-stone-200 border border-transparent'
+                    }`}
+                  >
+                    <Briefcase className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Офисы</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCategoryFilter('individual')}
+                    className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap flex-shrink-0 ${
+                      categoryFilter === 'individual'
+                        ? 'bg-purple-950 text-purple-200 border border-purple-500/40 font-bold'
+                        : 'text-stone-400 hover:text-stone-200 border border-transparent'
+                    }`}
+                  >
+                    <UserCheck className="w-3.5 h-3.5 text-purple-400" />
+                    <span>Частные</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Status filter */}
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <span className="text-stone-400 font-mono text-xs flex items-center gap-1.5 flex-shrink-0">
+                  <Filter className="w-3.5 h-3.5 text-amber-400" />
+                  Статус:
+                </span>
+                <div className="flex flex-wrap items-center bg-stone-900 rounded-xl p-1 border border-stone-800 text-xs font-mono gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setStatusFilter('all')}
+                    className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer whitespace-nowrap flex-shrink-0 ${
+                      statusFilter === 'all'
+                        ? 'bg-stone-800 text-amber-300 font-bold border border-stone-700'
+                        : 'text-stone-400 hover:text-stone-200 border border-transparent'
+                    }`}
+                  >
+                    Все
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStatusFilter('available')}
+                    className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer whitespace-nowrap flex-shrink-0 ${
+                      statusFilter === 'available'
+                        ? 'bg-emerald-950 text-emerald-300 font-bold border border-emerald-500/30'
+                        : 'text-stone-400 hover:text-stone-200 border border-transparent'
+                    }`}
+                  >
+                    Доступные
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStatusFilter('in_progress')}
+                    className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer whitespace-nowrap flex-shrink-0 ${
+                      statusFilter === 'in_progress'
+                        ? 'bg-amber-950 text-amber-300 font-bold border border-amber-500/30'
+                        : 'text-stone-400 hover:text-stone-200 border border-transparent'
+                    }`}
+                  >
+                    В работе
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStatusFilter('completed')}
+                    className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer whitespace-nowrap flex-shrink-0 ${
+                      statusFilter === 'completed'
+                        ? 'bg-blue-950 text-blue-300 font-bold border border-blue-500/30'
+                        : 'text-stone-400 hover:text-stone-200 border border-transparent'
+                    }`}
+                  >
+                    Выполненные
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStatusFilter('failed')}
+                    className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer whitespace-nowrap flex-shrink-0 ${
+                      statusFilter === 'failed'
+                        ? 'bg-red-950 text-red-300 font-bold border border-red-500/40'
+                        : 'text-stone-400 hover:text-stone-200 border border-transparent'
+                    }`}
+                  >
+                    Проваленные
+                  </button>
+                </div>
               </div>
             </div>
           </section>
